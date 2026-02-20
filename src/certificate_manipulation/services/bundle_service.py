@@ -278,12 +278,16 @@ def parse_file_with_policy(
     Returns:
         tuple[list[CertificateRecord], list[str], int]: Records, warnings, invalid count.
     """
-    if input_path.suffix.lower() in {".der", ".cer", ".p7b", ".p7c"}:
-        return load_from_file(input_path), [], 0
-
-    text = input_path.read_text(encoding="utf-8")
     if policy == InvalidCertPolicy.FAIL:
         return load_from_file(input_path), [], 0
+
+    try:
+        return load_from_file(input_path), [], 0
+    except CertificateParseError:
+        if input_path.suffix.lower() in {".der", ".cer", ".p7b", ".p7c"}:
+            return [], ["Skipped invalid certificate payload from input file"], 1
+
+    text = input_path.read_text(encoding="utf-8")
 
     records: list[CertificateRecord] = []
     warnings: list[str] = []

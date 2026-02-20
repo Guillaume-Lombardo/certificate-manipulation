@@ -17,6 +17,7 @@ PEM_BLOCK_RE = re.compile(
     r"-----BEGIN CERTIFICATE-----\s+.+?\s+-----END CERTIFICATE-----",
     re.DOTALL,
 )
+PEM_MARKER = b"-----BEGIN"
 
 
 def extract_pem_blocks(text: str) -> list[str]:
@@ -123,25 +124,33 @@ def parse_many_from_bytes(data: bytes, *, suffix: str) -> list[CertificateRecord
     """
     if suffix in {".p7b", ".p7c"}:
         try:
-            certificates = (
-                pkcs7.load_pem_pkcs7_certificates(data)
-                if b"-----BEGIN" in data
-                else pkcs7.load_der_pkcs7_certificates(data)
-            )
+            certificates = pkcs7.load_pem_pkcs7_certificates(data)
         except Exception as exc:
-            raise CertificateParseError(exc=exc) from exc
+            try:
+                certificates = pkcs7.load_der_pkcs7_certificates(data)
+            except Exception as der_exc:
+                raise CertificateParseError(exc=der_exc) from exc
         if not certificates:
             raise CertificateParseError(message="No certificates found in PKCS7 payload")
         return [parse_certificate(certificate) for certificate in certificates]
 
     if suffix in {".der", ".cer"}:
+        if PEM_MARKER in data:
+            try:
+                return parse_many_from_text(data.decode("utf-8"))
+            except Exception as exc:
+                raise CertificateParseError(exc=exc) from exc
         try:
             certificate = x509.load_der_x509_certificate(data)
         except Exception as exc:
             raise CertificateParseError(exc=exc) from exc
         return [parse_certificate(certificate)]
 
-    return parse_many_from_text(data.decode("utf-8"))
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise CertificateParseError(exc=exc) from exc
+    return parse_many_from_text(text)
 
 
 def load_from_file(path: Path) -> list[CertificateRecord]:

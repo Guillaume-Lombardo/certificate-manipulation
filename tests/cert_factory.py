@@ -83,3 +83,32 @@ def make_pkcs7_bundle_pem(common_names: list[str]) -> str:
         )
 
     return pkcs7.serialize_certificates(certs, Encoding.PEM).decode("utf-8")
+
+
+def make_pkcs7_bundle_der(common_names: list[str]) -> bytes:
+    """Build a PKCS7 DER bundle with multiple self-signed certificates.
+
+    Args:
+        common_names (list[str]): Subject common names to include.
+
+    Returns:
+        bytes: DER-encoded PKCS7 bundle.
+    """
+    certs: list[x509.Certificate] = []
+    for common_name in common_names:
+        private_key = ec.generate_private_key(ec.SECP256R1())
+        now = datetime.now(tz=UTC)
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, common_name)])
+        certs.append(
+            x509
+            .CertificateBuilder()
+            .subject_name(name)
+            .issuer_name(name)
+            .public_key(private_key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now - timedelta(days=1))
+            .not_valid_after(now + timedelta(days=365))
+            .sign(private_key=private_key, algorithm=hashes.SHA256()),
+        )
+
+    return pkcs7.serialize_certificates(certs, Encoding.DER)

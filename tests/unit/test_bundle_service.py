@@ -28,7 +28,12 @@ from certificate_manipulation.services.bundle_service import (
     parse_file_with_policy,
     split,
 )
-from tests.cert_factory import make_pkcs7_bundle_pem, make_self_signed_der, make_self_signed_pem
+from tests.cert_factory import (
+    make_pkcs7_bundle_der,
+    make_pkcs7_bundle_pem,
+    make_self_signed_der,
+    make_self_signed_pem,
+)
 
 
 def test_combine_deduplicates_by_fingerprint(tmp_path) -> None:
@@ -211,6 +216,59 @@ def test_filter_accepts_p7b_input(tmp_path) -> None:
         FilterRequest(
             input=p7b_input,
             output=tmp_path / "p7b-filtered.pem",
+            subject_cn="router",
+            overwrite=OverwritePolicy.VERSION,
+        ),
+    )
+
+    assert result.matched_count == 1
+
+
+def test_parse_file_with_policy_skip_invalid_der_file(tmp_path) -> None:
+    invalid_der = tmp_path / "invalid.der"
+    invalid_der.write_bytes(b"broken-der")
+
+    records, warnings, invalid_count = parse_file_with_policy(invalid_der, InvalidCertPolicy.SKIP)
+
+    assert records == []
+    assert invalid_count == 1
+    assert warnings
+
+
+def test_parse_file_with_policy_skip_invalid_p7b_file(tmp_path) -> None:
+    invalid_p7b = tmp_path / "invalid.p7b"
+    invalid_p7b.write_bytes(b"broken-p7b")
+
+    records, warnings, invalid_count = parse_file_with_policy(invalid_p7b, InvalidCertPolicy.SKIP)
+
+    assert records == []
+    assert invalid_count == 1
+    assert warnings
+
+
+def test_filter_skip_invalid_p7b_raises_validation_error(tmp_path) -> None:
+    invalid_p7b = tmp_path / "invalid.p7b"
+    invalid_p7b.write_bytes(b"broken-p7b")
+
+    with pytest.raises(ValidationError, match="No valid certificates found in input bundle"):
+        filter_certificates(
+            FilterRequest(
+                input=invalid_p7b,
+                output=tmp_path / "filtered.pem",
+                on_invalid=InvalidCertPolicy.SKIP,
+                overwrite=OverwritePolicy.VERSION,
+            ),
+        )
+
+
+def test_filter_accepts_der_encoded_p7b_input(tmp_path) -> None:
+    p7b_input = tmp_path / "bundle-der.p7b"
+    p7b_input.write_bytes(make_pkcs7_bundle_der(["p7b-der-router", "p7b-der-switch"]))
+
+    result = filter_certificates(
+        FilterRequest(
+            input=p7b_input,
+            output=tmp_path / "p7b-der-filtered.pem",
             subject_cn="router",
             overwrite=OverwritePolicy.VERSION,
         ),
