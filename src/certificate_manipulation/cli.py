@@ -23,10 +23,11 @@ from certificate_manipulation.domain.models import (
     CombineRequest,
     ConvertRequest,
     FilterRequest,
+    OperationReport,
     SplitRequest,
 )
 from certificate_manipulation.exceptions import CertificateParseError, ValidationError
-from certificate_manipulation.logging import configure_logging, get_logger
+from certificate_manipulation.logging import OperationLogger, configure_logging, get_logger
 from certificate_manipulation.services.bundle_service import (
     combine,
     convert,
@@ -105,6 +106,45 @@ class FilterCliArgs(BaseModel):
 
 
 ValidatedCliArgs = CombineCliArgs | SplitCliArgs | ConvertCliArgs | FilterCliArgs
+
+
+def log_operation_summary(
+    *,
+    command: CliCommand,
+    logger: OperationLogger,
+    report: OperationReport,
+    **extra: object,
+) -> None:
+    """Log a normalized operation summary for observability.
+
+    Args:
+        command (CliCommand): Executed command.
+        logger (structlog.BoundLogger): Bound logger used by the CLI.
+        report (OperationReport): Operation report to summarize.
+        **extra (str | int): Additional command-specific fields.
+    """
+    logger.info(
+        "operation completed",
+        command=command.value,
+        processed=report.processed,
+        written=report.written,
+        skipped=report.skipped,
+        invalid_count=report.invalid_count,
+        warnings_count=len(report.warnings),
+        **extra,
+    )
+    if report.warnings:
+        max_warnings_to_log = 50
+        warnings = list(report.warnings[:max_warnings_to_log])
+        warnings_truncated = max(0, len(report.warnings) - len(warnings))
+        logger.warning(
+            "operation warnings",
+            command=command.value,
+            warnings=warnings,
+            warnings_total=len(report.warnings),
+            warnings_truncated=warnings_truncated,
+            **extra,
+        )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -308,11 +348,12 @@ def main() -> int:
                     overwrite=args.overwrite,
                 ),
             )
-            logger.info(
-                "combine completed",
+            log_operation_summary(
+                command=CliCommand.COMBINE,
+                logger=logger,
+                report=result.report,
                 output=str(result.output_path),
                 certificate_count=result.certificate_count,
-                warnings=result.report.warnings,
             )
             exit_code = 3 if result.report.invalid_count > 0 else 0
         elif isinstance(args, SplitCliArgs):
@@ -326,10 +367,12 @@ def main() -> int:
                     overwrite=args.overwrite,
                 ),
             )
-            logger.info(
-                "split completed",
-                written=len(result.output_paths),
-                warnings=result.report.warnings,
+            log_operation_summary(
+                command=CliCommand.SPLIT,
+                logger=logger,
+                report=result.report,
+                output_dir=str(args.output_dir),
+                outputs_written=len(result.output_paths),
             )
             exit_code = 3 if result.report.invalid_count > 0 else 0
         elif isinstance(args, ConvertCliArgs):
@@ -341,7 +384,12 @@ def main() -> int:
                     overwrite=args.overwrite,
                 ),
             )
-            logger.info("convert completed", output=str(result.output_path))
+            log_operation_summary(
+                command=CliCommand.CONVERT,
+                logger=logger,
+                report=result.report,
+                output=str(result.output_path),
+            )
         elif isinstance(args, FilterCliArgs):
             result = filter_certificates(
                 FilterRequest(
@@ -357,12 +405,13 @@ def main() -> int:
                     overwrite=args.overwrite,
                 ),
             )
-            logger.info(
-                "filter completed",
+            log_operation_summary(
+                command=CliCommand.FILTER,
+                logger=logger,
+                report=result.report,
                 output=str(result.output_path),
                 matched=result.matched_count,
                 rejected=result.rejected_count,
-                warnings=result.report.warnings,
             )
             exit_code = 3 if result.report.invalid_count > 0 else 0
         else:

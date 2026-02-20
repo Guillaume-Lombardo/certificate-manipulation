@@ -25,12 +25,31 @@ uv tool run certificate-manipulation filter --input ./bundle.pem --output ./filt
 uv tool run certificate-manipulation filter --input ./bundle.pem --output ./active.pem --exclude-expired
 ```
 
+## Benchmark
+
+Run a basic performance check on a generated large bundle:
+
+```bash
+uv run python scripts/benchmark_large_bundle.py --cert-count 500
+```
+
+The script prints JSON timings for `combine`, `split`, and `filter`.
+If the workdir already exists, rerun with `--clean`.
+
 ### Exit Codes
 
 - `0`: Success
 - `1`: Validation error
 - `2`: Runtime/parse error
 - `3`: Partial success (`--on-invalid skip` with rejected certificates)
+
+## Troubleshooting
+
+- `No PEM certificates found`: ensure files contain `-----BEGIN CERTIFICATE-----` / `-----END CERTIFICATE-----` blocks.
+- Exit code `3`: operation completed with `--on-invalid skip`, at least one invalid cert was ignored.
+- `No valid certificates found`: input exists but contains no parsable X.509 PEM certificates.
+- `No certificates matched filter criteria`: input is valid but your filter is too restrictive.
+- Existing output path collisions: default `--overwrite version` writes `name.v2.ext`, `name.v3.ext`, etc.
 
 ## Project Layout
 

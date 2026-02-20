@@ -15,6 +15,8 @@ if TYPE_CHECKING:
 
 _LOGGING_CONFIGURED = False
 
+OperationLogger = structlog.BoundLogger
+
 
 def _rename_event_key(
     logger: logging.Logger,  # noqa: ARG001

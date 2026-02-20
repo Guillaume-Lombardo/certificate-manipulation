@@ -40,6 +40,7 @@ This file maps project delivery skills to the `certificate-manipulation` roadmap
 - For delivery execution, enforce the Git workflow loop:
   - commit + push + PR
   - wait for GitHub Copilot automatic review
+  - poll for review for up to 20 minutes, but stop immediately once review arrives
   - analyze comments and apply relevant fixes
   - comment each review conversation with resolution details or rationale
   - resolve conversations only after the explanation comment is posted

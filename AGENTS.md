@@ -67,6 +67,10 @@ This template includes AI delivery tooling:
   - open GitHub Pull Request
 - Use PR review and CI as mandatory validation before merge.
 - After opening the PR, wait for automatic GitHub Copilot review.
+- Copilot wait policy:
+  - poll for review status for up to 20 minutes maximum
+  - stop polling and process feedback immediately as soon as the first review arrives
+  - do not wait the full 20 minutes if review arrives earlier
 - Analyze all Copilot comments and apply only technically relevant feedback in code/tests/docs.
 - Explicitly justify non-relevant feedback in the PR discussion.
 - For each review conversation/thread, always post a follow-up comment explaining:
