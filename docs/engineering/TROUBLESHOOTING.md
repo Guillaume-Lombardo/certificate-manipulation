@@ -41,6 +41,6 @@ Checks:
 
 ## Operational tips
 
-- Keep `--overwrite version` for deterministic non-destructive outputs.
+- Use `--overwrite version` for deterministic non-destructive outputs.
 - Prefer `--filename-template fingerprint` when CN collisions are likely.
 - Use `scripts/benchmark_large_bundle.py` to detect local performance regressions before PR.

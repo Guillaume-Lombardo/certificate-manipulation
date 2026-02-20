@@ -34,6 +34,7 @@ uv run python scripts/benchmark_large_bundle.py --cert-count 500
 ```
 
 The script prints JSON timings for `combine`, `split`, and `filter`.
+If the workdir already exists, rerun with `--clean`.
 
 ### Exit Codes
 

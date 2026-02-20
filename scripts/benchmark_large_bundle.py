@@ -23,6 +23,33 @@ from cryptography.hazmat.primitives.serialization import Encoding
 from cryptography.x509.oid import NameOID
 
 
+class BenchmarkConfigError(ValueError):
+    """Raised when benchmark execution parameters are unsafe."""
+
+    def __init__(
+        self,
+        code: str,
+        *,
+        workdir: Path,
+        allowed_root: Path | None = None,
+    ) -> None:
+        """Initialize benchmark config error payload.
+
+        Args:
+            code (str): Machine-readable error code.
+            workdir (Path): Requested benchmark workdir.
+            allowed_root (Path | None): Allowed cleanup root when relevant.
+        """
+        self.code = code
+        if code == "existing_workdir":
+            message = f"Workdir already exists, rerun with --clean: {workdir}"
+        elif code == "unsafe_delete":
+            message = f"Refusing to delete workdir outside {allowed_root}: {workdir}"
+        else:
+            message = f"Invalid benchmark configuration: {code}"
+        super().__init__(message)
+
+
 def parse_args() -> argparse.Namespace:
     """Parse CLI arguments.
 
@@ -36,6 +63,11 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path(".benchmarks") / "phase3",
         help="Working directory for generated artifacts",
+    )
+    parser.add_argument(
+        "--clean",
+        action="store_true",
+        help="Allow deleting an existing workdir before benchmark execution",
     )
     return parser.parse_args()
 
@@ -108,13 +140,27 @@ def write_input_certs(*, cert_count: int, input_dir: Path) -> None:
 def main() -> int:
     """Entrypoint for benchmark execution.
 
+    Raises:
+        BenchmarkConfigError: If cleanup is unsafe or missing explicit confirmation.
+
     Returns:
         int: Process exit code.
     """
     args = parse_args()
-    workdir = args.workdir
+    workdir = args.workdir.resolve()
+    allowed_root = (Path.cwd() / ".benchmarks").resolve()
 
     if workdir.exists():
+        if not args.clean:
+            raise BenchmarkConfigError("existing_workdir", workdir=workdir)
+        try:
+            workdir.relative_to(allowed_root)
+        except ValueError as exc:
+            raise BenchmarkConfigError(
+                "unsafe_delete",
+                workdir=workdir,
+                allowed_root=allowed_root,
+            ) from exc
         shutil.rmtree(workdir)
     workdir.mkdir(parents=True, exist_ok=True)
 

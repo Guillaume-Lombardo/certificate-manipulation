@@ -113,7 +113,7 @@ def log_operation_summary(
     command: CliCommand,
     logger: OperationLogger,
     report: OperationReport,
-    **extra: str | int,
+    **extra: object,
 ) -> None:
     """Log a normalized operation summary for observability.
 
@@ -133,6 +133,18 @@ def log_operation_summary(
         warnings_count=len(report.warnings),
         **extra,
     )
+    if report.warnings:
+        max_warnings_to_log = 50
+        warnings = list(report.warnings[:max_warnings_to_log])
+        warnings_truncated = max(0, len(report.warnings) - len(warnings))
+        logger.warning(
+            "operation warnings",
+            command=command.value,
+            warnings=warnings,
+            warnings_total=len(report.warnings),
+            warnings_truncated=warnings_truncated,
+            **extra,
+        )
 
 
 def build_parser() -> argparse.ArgumentParser:
