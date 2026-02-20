@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from datetime import UTC, datetime
 from pathlib import Path  # noqa: TC003
-from typing import TYPE_CHECKING, Annotated, Literal, assert_never
+from typing import Annotated, Literal, assert_never
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic import ValidationError as PydanticValidationError
@@ -27,7 +27,7 @@ from certificate_manipulation.domain.models import (
     SplitRequest,
 )
 from certificate_manipulation.exceptions import CertificateParseError, ValidationError
-from certificate_manipulation.logging import configure_logging, get_logger
+from certificate_manipulation.logging import OperationLogger, configure_logging, get_logger
 from certificate_manipulation.services.bundle_service import (
     combine,
     convert,
@@ -35,9 +35,6 @@ from certificate_manipulation.services.bundle_service import (
     split,
 )
 from certificate_manipulation.settings import get_settings
-
-if TYPE_CHECKING:
-    import structlog
 
 
 class CombineCliArgs(BaseModel):
@@ -114,7 +111,7 @@ ValidatedCliArgs = CombineCliArgs | SplitCliArgs | ConvertCliArgs | FilterCliArg
 def log_operation_summary(
     *,
     command: CliCommand,
-    logger: structlog.BoundLogger,
+    logger: OperationLogger,
     report: OperationReport,
     **extra: str | int,
 ) -> None:
