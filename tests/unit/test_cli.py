@@ -9,6 +9,7 @@ import pytest
 from certificate_manipulation import cli
 from certificate_manipulation.domain.enums import (
     CliCommand,
+    FilterLogicMode,
     InvalidCertPolicy,
     OutputExt,
     OverwritePolicy,
@@ -197,11 +198,14 @@ def test_main_filter_success_returns_zero(mocker) -> None:
         input="bundle.pem",
         output="filtered.pem",
         subject_cn="router",
+        subject_cn_regex=None,
         issuer_cn=None,
+        issuer_cn_regex=None,
         not_after_lt=None,
         not_before_gt=None,
         fingerprint=None,
         exclude_expired=True,
+        logic="and",
         on_invalid="fail",
         overwrite="version",
     )
@@ -263,11 +267,14 @@ def test_validate_cli_args_for_each_command() -> None:
         input="bundle.pem",
         output="filtered.pem",
         subject_cn="router",
+        subject_cn_regex=None,
         issuer_cn=None,
+        issuer_cn_regex=None,
         not_after_lt=None,
         not_before_gt=None,
         fingerprint=None,
         exclude_expired=False,
+        logic="and",
         on_invalid="fail",
         overwrite="version",
     )
@@ -296,6 +303,7 @@ def test_validate_cli_args_for_each_command() -> None:
     assert parsed_filter.command == CliCommand.FILTER
     assert parsed_filter.subject_cn == "router"
     assert parsed_filter.exclude_expired is False
+    assert parsed_filter.logic == FilterLogicMode.AND
 
 
 def test_validate_cli_args_filter_normalizes_naive_datetimes() -> None:
@@ -304,11 +312,14 @@ def test_validate_cli_args_filter_normalizes_naive_datetimes() -> None:
         input="bundle.pem",
         output="filtered.pem",
         subject_cn=None,
+        subject_cn_regex=None,
         issuer_cn=None,
+        issuer_cn_regex=None,
         not_after_lt="2030-01-01T00:00:00",
         not_before_gt=None,
         fingerprint=None,
         exclude_expired=False,
+        logic="and",
         on_invalid="fail",
         overwrite="version",
     )
@@ -318,3 +329,28 @@ def test_validate_cli_args_filter_normalizes_naive_datetimes() -> None:
     assert isinstance(parsed_filter, cli.FilterCliArgs)
     assert parsed_filter.not_after_lt is not None
     assert parsed_filter.not_after_lt.tzinfo is UTC
+
+
+def test_validate_cli_args_filter_with_regex_and_or_logic() -> None:
+    filter_args = argparse.Namespace(
+        command="filter",
+        input="bundle.pem",
+        output="filtered.pem",
+        subject_cn=None,
+        subject_cn_regex="^router-.*",
+        issuer_cn=None,
+        issuer_cn_regex="^corp-.*",
+        not_after_lt=None,
+        not_before_gt=None,
+        fingerprint=None,
+        exclude_expired=False,
+        logic="or",
+        on_invalid="fail",
+        overwrite="version",
+    )
+
+    parsed_filter = cli.validate_cli_args(filter_args)
+
+    assert isinstance(parsed_filter, cli.FilterCliArgs)
+    assert parsed_filter.logic == FilterLogicMode.OR
+    assert parsed_filter.subject_cn_regex == "^router-.*"

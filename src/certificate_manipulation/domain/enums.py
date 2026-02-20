@@ -50,3 +50,10 @@ class CliCommand(StrEnum):
     SPLIT = "split"
     CONVERT = "convert"
     FILTER = "filter"
+
+
+class FilterLogicMode(StrEnum):
+    """How multiple filter criteria are combined."""
+
+    AND = "and"
+    OR = "or"

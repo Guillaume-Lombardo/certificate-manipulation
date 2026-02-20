@@ -204,5 +204,6 @@ Definition of Done:
 
 ## Statut d’implémentation roadmap
 
-- Démarré: R1 (support DER/P7B) avec tests unit/integration/end2end.
-- À démarrer: R2, R3, R4, R5.
+- Livré: R1 (support DER/P7B) avec tests unit/integration/end2end.
+- Démarré: R2 (regex CN/issuer + mode `OR`) avec couverture unit/integration/end2end.
+- À démarrer: R3, R4, R5.

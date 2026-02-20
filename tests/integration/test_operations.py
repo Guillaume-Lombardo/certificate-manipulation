@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from certificate_manipulation.domain.enums import (
+    FilterLogicMode,
     InvalidCertPolicy,
     OutputExt,
     OverwritePolicy,
@@ -136,3 +137,32 @@ def test_combine_supports_der_and_p7b_inputs(tmp_path) -> None:
     )
 
     assert result.certificate_count == 3
+
+
+def test_filter_supports_regex_and_or_logic(tmp_path) -> None:
+    pem_1 = make_self_signed_pem("branch-router")
+    pem_2 = make_self_signed_pem("branch-switch")
+    bundle = tmp_path / "bundle.pem"
+    bundle.write_text(f"{pem_1}\n{pem_2}", encoding="utf-8")
+
+    regex_result = filter_certificates(
+        FilterRequest(
+            input=bundle,
+            output=tmp_path / "regex-filtered.pem",
+            subject_cn_regex="^branch-r.*",
+            overwrite=OverwritePolicy.VERSION,
+        ),
+    )
+    assert regex_result.matched_count == 1
+
+    or_result = filter_certificates(
+        FilterRequest(
+            input=bundle,
+            output=tmp_path / "or-filtered.pem",
+            subject_cn="router",
+            issuer_cn="non-existent",
+            logic=FilterLogicMode.OR,
+            overwrite=OverwritePolicy.VERSION,
+        ),
+    )
+    assert or_result.matched_count == 1

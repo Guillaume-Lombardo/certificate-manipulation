@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from datetime import UTC, datetime
 from pathlib import Path  # noqa: TC003
 from typing import Annotated, Literal, assert_never
@@ -13,6 +14,7 @@ from pydantic import ValidationError as PydanticValidationError
 from certificate_manipulation import __version__
 from certificate_manipulation.domain.enums import (
     CliCommand,
+    FilterLogicMode,
     InvalidCertPolicy,
     OutputExt,
     OverwritePolicy,
@@ -79,11 +81,14 @@ class FilterCliArgs(BaseModel):
     input: Path
     output: Path
     subject_cn: str | None = None
+    subject_cn_regex: str | None = None
     issuer_cn: str | None = None
+    issuer_cn_regex: str | None = None
     not_after_lt: datetime | None = None
     not_before_gt: datetime | None = None
     fingerprint: str | None = None
     exclude_expired: bool = False
+    logic: FilterLogicMode = FilterLogicMode.AND
     on_invalid: InvalidCertPolicy = InvalidCertPolicy.FAIL
     overwrite: OverwritePolicy = OverwritePolicy.VERSION
 
@@ -103,6 +108,22 @@ class FilterCliArgs(BaseModel):
         if value.tzinfo is None:
             return value.replace(tzinfo=UTC)
         return value.astimezone(UTC)
+
+    @field_validator("subject_cn_regex", "issuer_cn_regex", mode="after")
+    @classmethod
+    def validate_regex_pattern(cls, value: str | None) -> str | None:
+        """Validate optional regex patterns used by filter criteria.
+
+        Args:
+            value (str | None): Optional regex pattern.
+
+        Returns:
+            str | None: Original regex pattern when valid.
+        """
+        if value is None:
+            return None
+        re.compile(value)
+        return value
 
 
 ValidatedCliArgs = CombineCliArgs | SplitCliArgs | ConvertCliArgs | FilterCliArgs
@@ -251,9 +272,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="Case-insensitive contains match on subject CN",
     )
     filter_parser.add_argument(
+        "--subject-cn-regex",
+        default=None,
+        help="Case-insensitive regex match on subject CN",
+    )
+    filter_parser.add_argument(
         "--issuer-cn",
         default=None,
         help="Case-insensitive contains match on issuer CN",
+    )
+    filter_parser.add_argument(
+        "--issuer-cn-regex",
+        default=None,
+        help="Case-insensitive regex match on issuer CN",
     )
     filter_parser.add_argument(
         "--not-after-lt",
@@ -271,6 +302,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Exclude certificates that are already expired",
     )
     filter_parser.add_argument("--fingerprint", default=None, help="Exact SHA256 fingerprint match")
+    filter_parser.add_argument(
+        "--logic",
+        choices=[mode.value for mode in FilterLogicMode],
+        default=FilterLogicMode.AND.value,
+        help="How to combine active criteria",
+    )
     filter_parser.add_argument(
         "--on-invalid",
         choices=[policy.value for policy in InvalidCertPolicy],
@@ -396,11 +433,14 @@ def main() -> int:
                     input=args.input,
                     output=args.output,
                     subject_cn=args.subject_cn,
+                    subject_cn_regex=args.subject_cn_regex,
                     issuer_cn=args.issuer_cn,
+                    issuer_cn_regex=args.issuer_cn_regex,
                     not_after_lt=args.not_after_lt,
                     not_before_gt=args.not_before_gt,
                     fingerprint=args.fingerprint,
                     exclude_expired=args.exclude_expired,
+                    logic=args.logic,
                     on_invalid=args.on_invalid,
                     overwrite=args.overwrite,
                 ),
