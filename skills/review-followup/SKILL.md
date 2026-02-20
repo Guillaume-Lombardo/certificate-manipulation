@@ -16,32 +16,34 @@ Process GitHub PR review comments end-to-end:
 
 1. Identify current branch and linked open PR.
 2. After creating/updating the PR, wait 60 seconds before the first status check.
-3. Poll every 60 seconds until BOTH conditions are met:
-   - CI checks are completed and passing,
-   - Copilot review is present on the PR.
-4. Fetch review threads with:
+3. Poll every 60 seconds for Copilot review with this policy:
+   - maximum wait window: 20 minutes,
+   - stop waiting immediately when Copilot review is present,
+   - do not wait the full 20 minutes if review arrives earlier.
+4. Check CI status independently and ensure checks are completed/passing before merge.
+5. Fetch review threads with:
    - `python3 /Users/g1lom/.codex/skills/gh-address-comments/scripts/fetch_comments.py`
-5. Build a short numbered list of threads with:
+6. Build a short numbered list of threads with:
    - issue summary,
    - validity assessment (`valid`, `partially valid`, `not needed`),
    - intended action.
-6. Analyze Copilot comments and act according to relevance:
+7. Analyze Copilot comments and act according to relevance:
    - implement fixes for `valid`,
    - implement minimal safe adjustments for `partially valid`,
    - do not implement `not needed` and document rationale in PR discussion.
-7. For each review thread, post a follow-up comment that states:
+8. For each review thread, post a follow-up comment that states:
    - what change resolved it, or
    - why it was not implemented.
-8. Apply code/test/documentation fixes for valid items.
-9. Run quality gates:
+9. Apply code/test/documentation fixes for valid items.
+10. Run quality gates:
    - `uv run ruff check .`
    - `uv run ty check src tests`
    - `uv run pytest -m unit`
    - `uv run pytest -m integration`
    - `uv run pytest -m end2end`
-10. Commit and push.
-11. Resolve threads for addressed comments via GraphQL mutation `resolveReviewThread`, only after the follow-up comment is posted.
-12. Report what was fixed, which threads were resolved, and what was intentionally not changed.
+11. Commit and push.
+12. Resolve threads for addressed comments via GraphQL mutation `resolveReviewThread`, only after the follow-up comment is posted.
+13. Report what was fixed, which threads were resolved, and what was intentionally not changed.
 
 ## Thread resolution note
 

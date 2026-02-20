@@ -25,6 +25,10 @@ Deliver high-quality, maintainable increments for a Python package and CLI/API t
 - Keep docs, skills, and roadmap artifacts synchronized with implementation.
 - Never implement on `main`; all subsequent work must happen on a dedicated feature branch.
 - Follow the standard Git flow: commit, push, open PR, wait for automatic GitHub Copilot review.
+- Copilot wait policy for each requested review cycle:
+  - poll review status for up to 20 minutes maximum
+  - stop polling and process comments immediately when the first review arrives
+  - do not wait 20 minutes if review is already available
 - Address technically relevant review comments with code/test/doc updates; document rationale when comments are not applicable.
 - For each review conversation, post a comment explaining the resolution or explicit non-implementation rationale before resolving it.
 - After implementing relevant feedback, ask the user whether a new GitHub analysis should be run.
