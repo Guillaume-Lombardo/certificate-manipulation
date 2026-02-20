@@ -31,3 +31,38 @@ class AsyncExecutionError(PackageError):
     def __str__(self) -> str:
         """Return error message payload."""
         return f"{self.message}: {self.result}"
+
+
+@dataclass(frozen=True)
+class CertificateParseError(PackageError):
+    """Raised when a certificate payload cannot be parsed."""
+
+    message: str = "Failed to parse certificate"
+    exc: Exception | None = None
+
+    def __str__(self) -> str:
+        """Return error message payload."""
+        return f"{self.message}: {self.exc}" if self.exc else self.message
+
+
+@dataclass(frozen=True)
+class ValidationError(PackageError):
+    """Raised when inputs are invalid for an operation."""
+
+    message: str
+
+    def __str__(self) -> str:
+        """Return error message payload."""
+        return self.message
+
+
+@dataclass(frozen=True)
+class OperationError(PackageError):
+    """Raised when an operation fails at runtime."""
+
+    message: str
+    exc: Exception | None = None
+
+    def __str__(self) -> str:
+        """Return error message payload."""
+        return f"{self.message}: {self.exc}" if self.exc else self.message

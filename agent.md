@@ -15,6 +15,7 @@ Deliver high-quality, maintainable increments for a Python package and CLI/API t
 - Keep strict boundaries between domain orchestration and infrastructure adapters (filesystem, crypto libraries, CLI transport).
 - Keep tests and docs aligned with behavior.
 - Favor deterministic behavior and explicit error handling for invalid or ambiguous certificate inputs.
+- For all modified public code paths, enforce Google-style docstrings with explicit `Args` and `Returns` types.
 
 ## Collaboration Contract
 

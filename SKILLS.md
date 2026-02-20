@@ -34,6 +34,9 @@ This file maps project delivery skills to the `certificate-manipulation` roadmap
 - Prefer the smallest skill set that fully covers the task.
 - Keep artifacts in English by default (French as complementary only if needed).
 - Update this file if new project-local skills are added or if roadmap ownership changes significantly.
+- Enforce docstring typing for modified code:
+  - `Args` entries use `name (Type): ...`
+  - `Returns` always starts with explicit type (`Type: ...`)
 - For delivery execution, enforce the Git workflow loop:
   - commit + push + PR
   - wait for GitHub Copilot automatic review
