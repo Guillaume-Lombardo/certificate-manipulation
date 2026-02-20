@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime  # noqa: TC003
+from datetime import UTC, datetime
 from pathlib import Path  # noqa: TC003
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from certificate_manipulation.domain.enums import (
     InvalidCertPolicy,
@@ -33,6 +33,7 @@ class CertificateRecord(DomainModel):
     fingerprint_sha256: str
     pem_text: str
     subject_common_name: str | None = None
+    issuer_common_name: str | None = None
 
 
 class OperationReport(DomainModel):
@@ -112,6 +113,23 @@ class FilterRequest(DomainModel):
     exclude_expired: bool = False
     on_invalid: InvalidCertPolicy = InvalidCertPolicy.FAIL
     overwrite: OverwritePolicy = OverwritePolicy.VERSION
+
+    @field_validator("not_after_lt", "not_before_gt", mode="after")
+    @classmethod
+    def normalize_datetime_to_utc(cls, value: datetime | None) -> datetime | None:
+        """Normalize optional datetimes to timezone-aware UTC.
+
+        Args:
+            value (datetime | None): Optional filter datetime.
+
+        Returns:
+            datetime | None: Normalized timezone-aware UTC datetime.
+        """
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
 
 
 class FilterResult(DomainModel):

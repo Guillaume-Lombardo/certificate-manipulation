@@ -181,6 +181,8 @@ def filter_certificates(request: FilterRequest) -> FilterResult:
     """
     text = read_text_file(request.input)
     records, warnings, invalid_count = parse_with_policy(text, request.on_invalid)
+    if not records:
+        raise ValidationError(message="No valid certificates found in input bundle")
 
     filtered = [record for record in records if matches_filter(record, request)]
     if not filtered:
@@ -311,8 +313,10 @@ def matches_filter(record: CertificateRecord, request: FilterRequest) -> bool:
         if request.subject_cn.lower() not in subject_cn:
             return False
 
-    if request.issuer_cn and request.issuer_cn.lower() not in record.issuer.lower():
-        return False
+    if request.issuer_cn:
+        issuer_cn = (record.issuer_common_name or "").lower()
+        if request.issuer_cn.lower() not in issuer_cn:
+            return False
 
     if request.not_after_lt and not (record.not_after < request.not_after_lt):
         return False

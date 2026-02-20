@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime  # noqa: TC003
+from datetime import UTC, datetime
 from pathlib import Path  # noqa: TC003
-from typing import Annotated, Literal
+from typing import Annotated, Literal, assert_never
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic import ValidationError as PydanticValidationError
 
 from certificate_manipulation import __version__
@@ -85,6 +85,23 @@ class FilterCliArgs(BaseModel):
     exclude_expired: bool = False
     on_invalid: InvalidCertPolicy = InvalidCertPolicy.FAIL
     overwrite: OverwritePolicy = OverwritePolicy.VERSION
+
+    @field_validator("not_after_lt", "not_before_gt", mode="after")
+    @classmethod
+    def normalize_datetime_to_utc(cls, value: datetime | None) -> datetime | None:
+        """Normalize optional filter datetimes to timezone-aware UTC.
+
+        Args:
+            value (datetime | None): Optional filter datetime.
+
+        Returns:
+            datetime | None: Timezone-aware UTC datetime.
+        """
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
 
 
 ValidatedCliArgs = CombineCliArgs | SplitCliArgs | ConvertCliArgs | FilterCliArgs
@@ -196,7 +213,7 @@ def build_parser() -> argparse.ArgumentParser:
     filter_parser.add_argument(
         "--issuer-cn",
         default=None,
-        help="Case-insensitive contains match on issuer string",
+        help="Case-insensitive contains match on issuer CN",
     )
     filter_parser.add_argument(
         "--not-after-lt",
@@ -325,7 +342,7 @@ def main() -> int:
                 ),
             )
             logger.info("convert completed", output=str(result.output_path))
-        else:
+        elif isinstance(args, FilterCliArgs):
             result = filter_certificates(
                 FilterRequest(
                     input=args.input,
@@ -348,6 +365,8 @@ def main() -> int:
                 warnings=result.report.warnings,
             )
             exit_code = 3 if result.report.invalid_count > 0 else 0
+        else:
+            assert_never(args)
     except ValidationError as exc:
         logger.exception("validation error", error=str(exc))
         return 1

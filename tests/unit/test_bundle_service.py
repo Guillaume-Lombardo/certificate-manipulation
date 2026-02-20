@@ -212,6 +212,21 @@ def test_filter_certificates_raises_when_no_match(tmp_path) -> None:
         )
 
 
+def test_filter_certificates_raises_when_no_valid_records(tmp_path) -> None:
+    bundle = tmp_path / "bundle.pem"
+    bundle.write_text("invalid", encoding="utf-8")
+
+    with pytest.raises(ValidationError, match="No valid certificates found in input bundle"):
+        filter_certificates(
+            FilterRequest(
+                input=bundle,
+                output=tmp_path / "filtered.pem",
+                on_invalid=InvalidCertPolicy.SKIP,
+                overwrite=OverwritePolicy.VERSION,
+            ),
+        )
+
+
 def test_matches_filter_excludes_expired_certificates() -> None:
     expired_record = CertificateRecord(
         subject="CN=expired",
@@ -222,6 +237,7 @@ def test_matches_filter_excludes_expired_certificates() -> None:
         fingerprint_sha256="abc123",
         pem_text="-----BEGIN CERTIFICATE-----\nX\n-----END CERTIFICATE-----",
         subject_common_name="expired",
+        issuer_common_name="ca",
     )
     active_record = CertificateRecord(
         subject="CN=active",
@@ -232,6 +248,7 @@ def test_matches_filter_excludes_expired_certificates() -> None:
         fingerprint_sha256="def456",
         pem_text="-----BEGIN CERTIFICATE-----\nX\n-----END CERTIFICATE-----",
         subject_common_name="active",
+        issuer_common_name="ca",
     )
     request = FilterRequest(
         input=Path("in.pem"),
@@ -241,3 +258,26 @@ def test_matches_filter_excludes_expired_certificates() -> None:
 
     assert matches_filter(expired_record, request) is False
     assert matches_filter(active_record, request) is True
+
+
+def test_matches_filter_normalizes_naive_datetime_filters() -> None:
+    record = CertificateRecord(
+        subject="CN=active",
+        issuer="CN=ca",
+        serial="0x2",
+        not_before=datetime.now(tz=UTC) - timedelta(days=10),
+        not_after=datetime.now(tz=UTC) + timedelta(days=10),
+        fingerprint_sha256="def456",
+        pem_text="-----BEGIN CERTIFICATE-----\nX\n-----END CERTIFICATE-----",
+        subject_common_name="active",
+        issuer_common_name="ca",
+    )
+    request = FilterRequest(
+        input=Path("in.pem"),
+        output=Path("out.pem"),
+        not_after_lt=datetime(2099, 1, 1, tzinfo=UTC).replace(tzinfo=None),
+    )
+
+    assert request.not_after_lt is not None
+    assert request.not_after_lt.tzinfo is UTC
+    assert matches_filter(record, request) is True

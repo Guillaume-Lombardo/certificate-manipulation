@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import UTC
 from pathlib import Path
 
 import pytest
@@ -295,3 +296,25 @@ def test_validate_cli_args_for_each_command() -> None:
     assert parsed_filter.command == CliCommand.FILTER
     assert parsed_filter.subject_cn == "router"
     assert parsed_filter.exclude_expired is False
+
+
+def test_validate_cli_args_filter_normalizes_naive_datetimes() -> None:
+    filter_args = argparse.Namespace(
+        command="filter",
+        input="bundle.pem",
+        output="filtered.pem",
+        subject_cn=None,
+        issuer_cn=None,
+        not_after_lt="2030-01-01T00:00:00",
+        not_before_gt=None,
+        fingerprint=None,
+        exclude_expired=False,
+        on_invalid="fail",
+        overwrite="version",
+    )
+
+    parsed_filter = cli.validate_cli_args(filter_args)
+
+    assert isinstance(parsed_filter, cli.FilterCliArgs)
+    assert parsed_filter.not_after_lt is not None
+    assert parsed_filter.not_after_lt.tzinfo is UTC
