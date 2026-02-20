@@ -27,6 +27,9 @@ Keep code consistent, typed, and easy to maintain.
 - Prefer `enum.StrEnum` for single-choice options.
 - Prefer `enum.Flag`/`enum.IntFlag` for combinable options, with conversion helpers (`str -> flag`, `flag -> str`).
 - Use Google-style docstrings with explicit argument and return types to keep Sphinx generation reliable.
+- Required docstring patterns:
+  - `Args`: `name (Type): description`
+  - `Returns`: `Type: description`
 
 ## Static Checks
 

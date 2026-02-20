@@ -14,13 +14,21 @@ uv run pytest
 uv run pre-commit run --all-files
 ```
 
-## First Commit
+## CLI Usage
 
 ```bash
-git add .
-git commit -m "initial commit"
-git push -u origin main
+uv tool run certificate-manipulation --help
+uv tool run certificate-manipulation combine --inputs ./a.crt ./b.pem --output ./bundle.pem
+uv tool run certificate-manipulation split --input ./bundle.pem --output-dir ./out --ext crt
+uv tool run certificate-manipulation convert --input ./a.crt --output ./a.pem --to pem
 ```
+
+### Exit Codes
+
+- `0`: Success
+- `1`: Validation error
+- `2`: Runtime/parse error
+- `3`: Partial success (`--on-invalid skip` with rejected certificates)
 
 ## Project Layout
 

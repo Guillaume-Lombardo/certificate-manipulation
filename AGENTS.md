@@ -35,6 +35,8 @@ This template includes AI delivery tooling:
   - use `enum.Flag`/`enum.IntFlag` for combinable choices
   - provide explicit conversions from `str` to enum/flag and back
 - Write Google-style docstrings with explicit types in `Args` and `Returns` (and `Raises` when relevant).
+- `Args` entries must follow `name (Type): ...` format.
+- `Returns` must always include the explicit return type (for example `int: ...` or `list[str]: ...`).
 
 ## Domain Contracts
 
