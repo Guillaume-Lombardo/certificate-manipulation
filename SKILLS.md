@@ -34,6 +34,13 @@ This file maps project delivery skills to the `certificate-manipulation` roadmap
 - Prefer the smallest skill set that fully covers the task.
 - Keep artifacts in English by default (French as complementary only if needed).
 - Update this file if new project-local skills are added or if roadmap ownership changes significantly.
+- For delivery execution, enforce the Git workflow loop:
+  - commit + push + PR
+  - wait for GitHub Copilot automatic review
+  - analyze comments and apply relevant fixes
+  - ask user if a new GitHub analysis should be triggered
+  - repeat when needed, then squash merge
+  - return to `main`, pull, and clean feature branch
 - Before implementation/review completion, read and apply:
   - `docs/engineering/DEFINITION_OF_DONE.md`
   - `docs/engineering/REVIEW_RUNBOOK.md`

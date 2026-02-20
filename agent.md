@@ -23,7 +23,12 @@ Deliver high-quality, maintainable increments for a Python package and CLI/API t
 - Prefer small, testable increments aligned with project milestones.
 - Keep docs, skills, and roadmap artifacts synchronized with implementation.
 - Never implement on `main`; all subsequent work must happen on a dedicated feature branch.
+- Follow the standard Git flow: commit, push, open PR, wait for automatic GitHub Copilot review.
 - Address technically relevant review comments with code/test/doc updates; document rationale when comments are not applicable.
+- After implementing relevant feedback, ask the user whether a new GitHub analysis should be run.
+- If requested, wait for the new analysis and repeat the review-feedback loop until all relevant points are resolved.
+- Use squash merge once CI and review feedback are fully validated.
+- After merge, checkout `main`, pull latest changes, and clean up the feature branch.
 - Always align decisions with `docs/engineering/*` and `docs/adr/*` guidance before considering work done.
 - Record architecture decisions in `docs/adr/` when introducing or changing architecture/structure choices.
 - Keep unit-test layout parity under `tests/unit/...` with package layout.

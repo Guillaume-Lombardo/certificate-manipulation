@@ -59,8 +59,18 @@ This template includes AI delivery tooling:
 
 - Implement each run, phase, and feature in a dedicated branch created for that specific scope.
 - Do not develop features directly on the main branch.
-- End every run, phase, and feature delivery with a GitHub Pull Request.
+- Standard Git flow is mandatory for each delivery:
+  - commit local changes
+  - push feature branch
+  - open GitHub Pull Request
 - Use PR review and CI as mandatory validation before merge.
+- After opening the PR, wait for automatic GitHub Copilot review.
+- Analyze all Copilot comments and apply only technically relevant feedback in code/tests/docs.
+- Explicitly justify non-relevant feedback in the PR discussion.
+- After applying fixes, ask the user whether a new GitHub analysis/review cycle should be triggered.
+- If a new analysis is requested, wait for the new review and repeat the analysis/feedback loop until all relevant points are resolved.
+- Merge with squash only when CI, review feedback, and user validation are complete.
+- After merge, switch back to `main`, pull latest changes, and delete the feature branch locally (and remotely when applicable).
 - Before each push/PR, run one explicit dead-code pass and remove unused code/paths/imports no longer referenced.
 - Before every push/PR, ensure docs/config bootstrap are synchronized with code changes:
   - update `README.md` when CLI behavior, setup, or workflow changes
