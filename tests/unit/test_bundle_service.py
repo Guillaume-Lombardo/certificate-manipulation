@@ -45,6 +45,8 @@ def test_combine_deduplicates_by_fingerprint(tmp_path) -> None:
     )
 
     assert result.certificate_count == 1
+    assert result.report.processed == 2
+    assert result.report.written == 1
     assert output.exists()
 
 
@@ -85,6 +87,31 @@ def test_combine_skip_invalid_files(tmp_path) -> None:
 
     assert result.certificate_count == 1
     assert result.report.invalid_count == 1
+
+
+def test_combine_skip_keeps_valid_blocks_from_partially_invalid_file(tmp_path) -> None:
+    valid = make_self_signed_pem("mixed-ca")
+    mixed = tmp_path / "mixed.crt"
+    mixed.write_text(
+        f"{valid}\n-----BEGIN CERTIFICATE-----\nINVALID\n-----END CERTIFICATE-----\n",
+        encoding="utf-8",
+    )
+
+    result = combine(
+        CombineRequest(
+            inputs=[mixed],
+            recursive=False,
+            output=tmp_path / "bundle-mixed.pem",
+            deduplicate=True,
+            sort=SortMode.INPUT,
+            on_invalid=InvalidCertPolicy.SKIP,
+            overwrite=OverwritePolicy.VERSION,
+        ),
+    )
+
+    assert result.certificate_count == 1
+    assert result.report.invalid_count == 1
+    assert result.report.warnings
 
 
 def test_split_writes_two_output_files(tmp_path) -> None:

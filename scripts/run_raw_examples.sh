@@ -4,7 +4,7 @@ set -euo pipefail
 help_output="$(uv run certificate-manipulation --help)"
 echo "$help_output"
 
-if print -r -- "$help_output" | grep -Eq '\bcombine\b|\bsplit\b|\bfilter\b'; then
+if print -r -- "$help_output" | grep -Eq '\bcombine\b|\bsplit\b|\bconvert\b'; then
   : "${cert1:=data/raw/cert-1.crt}"
   : "${cert2:=data/raw/cert-2.crt}"
   : "${combined_out:=data/out/combined.pem}"

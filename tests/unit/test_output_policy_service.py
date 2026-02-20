@@ -23,3 +23,12 @@ def test_fail_policy_raises_when_output_exists(tmp_path) -> None:
 
     with pytest.raises(ValidationError):
         resolve_output_path(base, OverwritePolicy.FAIL)
+
+
+def test_version_policy_increments_existing_version_suffix(tmp_path) -> None:
+    base = tmp_path / "bundle.v2.crt"
+    base.write_text("x", encoding="utf-8")
+
+    resolved = resolve_output_path(base, OverwritePolicy.VERSION)
+
+    assert resolved.name == "bundle.v3.crt"

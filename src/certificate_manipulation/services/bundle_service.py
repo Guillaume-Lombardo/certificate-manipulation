@@ -56,17 +56,32 @@ def combine(request: CombineRequest) -> CombineResult:
     invalid_count = 0
 
     for input_file in files:
+        text = read_text_file(input_file)
         try:
-            records.extend(load_from_file(input_file))
+            file_records, file_warnings, file_invalid_count = parse_with_policy(
+                text,
+                request.on_invalid,
+            )
         except CertificateParseError:
             if request.on_invalid == InvalidCertPolicy.FAIL:
                 raise
             invalid_count += 1
             warnings.append(f"Skipped invalid certificate file: {input_file}")
+            continue
+
+        records.extend(file_records)
+        if not file_records and file_invalid_count == 0:
+            invalid_count += 1
+            warnings.append(f"Skipped invalid certificate file: {input_file}")
+            continue
+
+        invalid_count += file_invalid_count
+        warnings.extend(f"{input_file}: {item}" for item in file_warnings)
 
     if not records:
         raise ValidationError(message="No valid certificates found")
 
+    processed_count = len(records) + invalid_count
     sorted_records = sort_records(records, request.sort)
     if request.deduplicate:
         sorted_records = deduplicate_records(sorted_records)
@@ -76,7 +91,7 @@ def combine(request: CombineRequest) -> CombineResult:
     write_text_file(output_path, bundle_text)
 
     report = OperationReport(
-        processed=len(sorted_records) + invalid_count,
+        processed=processed_count,
         written=len(sorted_records),
         skipped=invalid_count,
         invalid_count=invalid_count,
