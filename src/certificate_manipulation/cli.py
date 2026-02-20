@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from datetime import UTC, datetime
 from pathlib import Path  # noqa: TC003
-from typing import Annotated, Literal, assert_never
+from typing import TYPE_CHECKING, Annotated, Literal, assert_never
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic import ValidationError as PydanticValidationError
@@ -23,6 +23,7 @@ from certificate_manipulation.domain.models import (
     CombineRequest,
     ConvertRequest,
     FilterRequest,
+    OperationReport,
     SplitRequest,
 )
 from certificate_manipulation.exceptions import CertificateParseError, ValidationError
@@ -34,6 +35,9 @@ from certificate_manipulation.services.bundle_service import (
     split,
 )
 from certificate_manipulation.settings import get_settings
+
+if TYPE_CHECKING:
+    import structlog
 
 
 class CombineCliArgs(BaseModel):
@@ -105,6 +109,33 @@ class FilterCliArgs(BaseModel):
 
 
 ValidatedCliArgs = CombineCliArgs | SplitCliArgs | ConvertCliArgs | FilterCliArgs
+
+
+def log_operation_summary(
+    *,
+    command: CliCommand,
+    logger: structlog.BoundLogger,
+    report: OperationReport,
+    **extra: str | int,
+) -> None:
+    """Log a normalized operation summary for observability.
+
+    Args:
+        command (CliCommand): Executed command.
+        logger (structlog.BoundLogger): Bound logger used by the CLI.
+        report (OperationReport): Operation report to summarize.
+        **extra (str | int): Additional command-specific fields.
+    """
+    logger.info(
+        "operation completed",
+        command=command.value,
+        processed=report.processed,
+        written=report.written,
+        skipped=report.skipped,
+        invalid_count=report.invalid_count,
+        warnings_count=len(report.warnings),
+        **extra,
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -308,11 +339,12 @@ def main() -> int:
                     overwrite=args.overwrite,
                 ),
             )
-            logger.info(
-                "combine completed",
+            log_operation_summary(
+                command=CliCommand.COMBINE,
+                logger=logger,
+                report=result.report,
                 output=str(result.output_path),
                 certificate_count=result.certificate_count,
-                warnings=result.report.warnings,
             )
             exit_code = 3 if result.report.invalid_count > 0 else 0
         elif isinstance(args, SplitCliArgs):
@@ -326,10 +358,12 @@ def main() -> int:
                     overwrite=args.overwrite,
                 ),
             )
-            logger.info(
-                "split completed",
-                written=len(result.output_paths),
-                warnings=result.report.warnings,
+            log_operation_summary(
+                command=CliCommand.SPLIT,
+                logger=logger,
+                report=result.report,
+                output_dir=str(args.output_dir),
+                outputs_written=len(result.output_paths),
             )
             exit_code = 3 if result.report.invalid_count > 0 else 0
         elif isinstance(args, ConvertCliArgs):
@@ -341,7 +375,12 @@ def main() -> int:
                     overwrite=args.overwrite,
                 ),
             )
-            logger.info("convert completed", output=str(result.output_path))
+            log_operation_summary(
+                command=CliCommand.CONVERT,
+                logger=logger,
+                report=result.report,
+                output=str(result.output_path),
+            )
         elif isinstance(args, FilterCliArgs):
             result = filter_certificates(
                 FilterRequest(
@@ -357,12 +396,13 @@ def main() -> int:
                     overwrite=args.overwrite,
                 ),
             )
-            logger.info(
-                "filter completed",
+            log_operation_summary(
+                command=CliCommand.FILTER,
+                logger=logger,
+                report=result.report,
                 output=str(result.output_path),
                 matched=result.matched_count,
                 rejected=result.rejected_count,
-                warnings=result.report.warnings,
             )
             exit_code = 3 if result.report.invalid_count > 0 else 0
         else:
