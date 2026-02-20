@@ -26,9 +26,11 @@ Deliver high-quality, maintainable increments for a Python package and CLI/API t
 - Never implement on `main`; all subsequent work must happen on a dedicated feature branch.
 - Follow the standard Git flow: commit, push, open PR, wait for automatic GitHub Copilot review.
 - Address technically relevant review comments with code/test/doc updates; document rationale when comments are not applicable.
+- For each review conversation, post a comment explaining the resolution or explicit non-implementation rationale before resolving it.
 - After implementing relevant feedback, ask the user whether a new GitHub analysis should be run.
 - If requested, wait for the new analysis and repeat the review-feedback loop until all relevant points are resolved.
-- Use squash merge once CI and review feedback are fully validated.
+- Resolve review conversations only after the explanation comment is posted.
+- Use squash merge once CI, review feedback, and review conversation resolution are fully validated.
 - After merge, checkout `main`, pull latest changes, and clean up the feature branch.
 - Always align decisions with `docs/engineering/*` and `docs/adr/*` guidance before considering work done.
 - Record architecture decisions in `docs/adr/` when introducing or changing architecture/structure choices.

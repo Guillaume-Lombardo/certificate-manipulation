@@ -59,3 +59,25 @@ def test_cli_combine_and_split_flow(tmp_path) -> None:
     split_bundle_text = "\n".join(path.read_text(encoding="utf-8") for path in split_files)
     records = parse_many_from_text(split_bundle_text)
     assert len(records) == 2
+
+    filtered = tmp_path / "filtered.pem"
+    filter_result = subprocess_run(  # noqa: S603
+        [
+            sys.executable,
+            "-m",
+            "certificate_manipulation.cli",
+            "filter",
+            "--input",
+            str(bundle),
+            "--output",
+            str(filtered),
+            "--subject-cn",
+            "router-a",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert filter_result.returncode == 0
+    filtered_records = parse_many_from_text(filtered.read_text(encoding="utf-8"))
+    assert len(filtered_records) == 1

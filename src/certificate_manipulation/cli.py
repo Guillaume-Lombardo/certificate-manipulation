@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime  # noqa: TC003
 from pathlib import Path  # noqa: TC003
 from typing import Annotated, Literal
 
@@ -18,13 +19,20 @@ from certificate_manipulation.domain.enums import (
     SortMode,
     SplitNamingStrategy,
 )
-from certificate_manipulation.domain.models import CombineRequest, ConvertRequest, SplitRequest
-from certificate_manipulation.exceptions import (
-    CertificateParseError,
-    ValidationError,
+from certificate_manipulation.domain.models import (
+    CombineRequest,
+    ConvertRequest,
+    FilterRequest,
+    SplitRequest,
 )
+from certificate_manipulation.exceptions import CertificateParseError, ValidationError
 from certificate_manipulation.logging import configure_logging, get_logger
-from certificate_manipulation.services.bundle_service import combine, convert, split
+from certificate_manipulation.services.bundle_service import (
+    combine,
+    convert,
+    filter_certificates,
+    split,
+)
 from certificate_manipulation.settings import get_settings
 
 
@@ -63,7 +71,23 @@ class ConvertCliArgs(BaseModel):
     overwrite: OverwritePolicy = OverwritePolicy.VERSION
 
 
-ValidatedCliArgs = CombineCliArgs | SplitCliArgs | ConvertCliArgs
+class FilterCliArgs(BaseModel):
+    """Validated CLI args for filter command."""
+
+    command: Literal[CliCommand.FILTER]
+    input: Path
+    output: Path
+    subject_cn: str | None = None
+    issuer_cn: str | None = None
+    not_after_lt: datetime | None = None
+    not_before_gt: datetime | None = None
+    fingerprint: str | None = None
+    exclude_expired: bool = False
+    on_invalid: InvalidCertPolicy = InvalidCertPolicy.FAIL
+    overwrite: OverwritePolicy = OverwritePolicy.VERSION
+
+
+ValidatedCliArgs = CombineCliArgs | SplitCliArgs | ConvertCliArgs | FilterCliArgs
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -157,6 +181,52 @@ def build_parser() -> argparse.ArgumentParser:
         default=OverwritePolicy.VERSION.value,
         help="Output collision strategy",
     )
+
+    filter_parser = subparsers.add_parser(
+        CliCommand.FILTER.value,
+        help="Filter certificates from an input bundle",
+    )
+    filter_parser.add_argument("--input", required=True, help="Input bundle file")
+    filter_parser.add_argument("--output", required=True, help="Output bundle file")
+    filter_parser.add_argument(
+        "--subject-cn",
+        default=None,
+        help="Case-insensitive contains match on subject CN",
+    )
+    filter_parser.add_argument(
+        "--issuer-cn",
+        default=None,
+        help="Case-insensitive contains match on issuer string",
+    )
+    filter_parser.add_argument(
+        "--not-after-lt",
+        default=None,
+        help="Keep certs where not_after is lower than this ISO datetime",
+    )
+    filter_parser.add_argument(
+        "--not-before-gt",
+        default=None,
+        help="Keep certs where not_before is greater than this ISO datetime",
+    )
+    filter_parser.add_argument(
+        "--exclude-expired",
+        action="store_true",
+        help="Exclude certificates that are already expired",
+    )
+    filter_parser.add_argument("--fingerprint", default=None, help="Exact SHA256 fingerprint match")
+    filter_parser.add_argument(
+        "--on-invalid",
+        choices=[policy.value for policy in InvalidCertPolicy],
+        default=InvalidCertPolicy.FAIL.value,
+        help="Policy for invalid certificates",
+    )
+    filter_parser.add_argument(
+        "--overwrite",
+        choices=[policy.value for policy in OverwritePolicy],
+        default=OverwritePolicy.VERSION.value,
+        help="Output collision strategy",
+    )
+
     return parser
 
 
@@ -186,6 +256,8 @@ def validate_cli_args(parsed_args: argparse.Namespace) -> ValidatedCliArgs:
             return SplitCliArgs.model_validate(raw_args)
         if command == CliCommand.CONVERT:
             return ConvertCliArgs.model_validate(raw_args)
+        if command == CliCommand.FILTER:
+            return FilterCliArgs.model_validate(raw_args)
     except PydanticValidationError as exc:
         raise ValidationError(message=f"Invalid CLI arguments: {exc}") from exc
 
@@ -243,7 +315,7 @@ def main() -> int:
                 warnings=result.report.warnings,
             )
             exit_code = 3 if result.report.invalid_count > 0 else 0
-        else:
+        elif isinstance(args, ConvertCliArgs):
             result = convert(
                 ConvertRequest(
                     input=args.input,
@@ -253,7 +325,29 @@ def main() -> int:
                 ),
             )
             logger.info("convert completed", output=str(result.output_path))
-
+        else:
+            result = filter_certificates(
+                FilterRequest(
+                    input=args.input,
+                    output=args.output,
+                    subject_cn=args.subject_cn,
+                    issuer_cn=args.issuer_cn,
+                    not_after_lt=args.not_after_lt,
+                    not_before_gt=args.not_before_gt,
+                    fingerprint=args.fingerprint,
+                    exclude_expired=args.exclude_expired,
+                    on_invalid=args.on_invalid,
+                    overwrite=args.overwrite,
+                ),
+            )
+            logger.info(
+                "filter completed",
+                output=str(result.output_path),
+                matched=result.matched_count,
+                rejected=result.rejected_count,
+                warnings=result.report.warnings,
+            )
+            exit_code = 3 if result.report.invalid_count > 0 else 0
     except ValidationError as exc:
         logger.exception("validation error", error=str(exc))
         return 1

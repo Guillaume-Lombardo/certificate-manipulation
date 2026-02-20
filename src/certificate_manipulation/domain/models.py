@@ -97,3 +97,27 @@ class ConvertResult(DomainModel):
 
     output_path: Path
     report: OperationReport
+
+
+class FilterRequest(DomainModel):
+    """Input contract for filter operation."""
+
+    input: Path
+    output: Path
+    subject_cn: str | None = None
+    issuer_cn: str | None = None
+    not_after_lt: datetime | None = None
+    not_before_gt: datetime | None = None
+    fingerprint: str | None = None
+    exclude_expired: bool = False
+    on_invalid: InvalidCertPolicy = InvalidCertPolicy.FAIL
+    overwrite: OverwritePolicy = OverwritePolicy.VERSION
+
+
+class FilterResult(DomainModel):
+    """Output contract for filter operation."""
+
+    output_path: Path
+    matched_count: int
+    rejected_count: int
+    report: OperationReport

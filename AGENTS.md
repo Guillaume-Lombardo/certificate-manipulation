@@ -69,9 +69,13 @@ This template includes AI delivery tooling:
 - After opening the PR, wait for automatic GitHub Copilot review.
 - Analyze all Copilot comments and apply only technically relevant feedback in code/tests/docs.
 - Explicitly justify non-relevant feedback in the PR discussion.
+- For each review conversation/thread, always post a follow-up comment explaining:
+  - what was changed to resolve it, or
+  - why it is intentionally not implemented.
+- Resolve review conversations/threads only after that explanation is posted.
 - After applying fixes, ask the user whether a new GitHub analysis/review cycle should be triggered.
 - If a new analysis is requested, wait for the new review and repeat the analysis/feedback loop until all relevant points are resolved.
-- Merge with squash only when CI, review feedback, and user validation are complete.
+- Merge with squash only when CI, review feedback, user validation, and conversation resolution are complete.
 - After merge, switch back to `main`, pull latest changes, and delete the feature branch locally (and remotely when applicable).
 - Before each push/PR, run one explicit dead-code pass and remove unused code/paths/imports no longer referenced.
 - Before every push/PR, ensure docs/config bootstrap are synchronized with code changes:

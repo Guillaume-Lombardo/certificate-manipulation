@@ -41,6 +41,8 @@ This file maps project delivery skills to the `certificate-manipulation` roadmap
   - commit + push + PR
   - wait for GitHub Copilot automatic review
   - analyze comments and apply relevant fixes
+  - comment each review conversation with resolution details or rationale
+  - resolve conversations only after the explanation comment is posted
   - ask user if a new GitHub analysis should be triggered
   - repeat when needed, then squash merge
   - return to `main`, pull, and clean feature branch
