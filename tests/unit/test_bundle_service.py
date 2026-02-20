@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
 import pytest
 
 from certificate_manipulation.domain.enums import (
@@ -10,14 +13,18 @@ from certificate_manipulation.domain.enums import (
     SplitNamingStrategy,
 )
 from certificate_manipulation.domain.models import (
+    CertificateRecord,
     CombineRequest,
     ConvertRequest,
+    FilterRequest,
     SplitRequest,
 )
 from certificate_manipulation.exceptions import CertificateParseError, ValidationError
 from certificate_manipulation.services.bundle_service import (
     combine,
     convert,
+    filter_certificates,
+    matches_filter,
     parse_with_policy,
     split,
 )
@@ -169,3 +176,108 @@ def test_parse_with_policy_skip_invalid_blocks() -> None:
 def test_parse_with_policy_fail_raises() -> None:
     with pytest.raises(CertificateParseError):
         parse_with_policy("not a certificate", InvalidCertPolicy.FAIL)
+
+
+def test_filter_certificates_by_subject_cn(tmp_path) -> None:
+    bundle = tmp_path / "bundle.pem"
+    pem_router = make_self_signed_pem("router-edge")
+    pem_switch = make_self_signed_pem("switch-core")
+    bundle.write_text(f"{pem_router}\n{pem_switch}", encoding="utf-8")
+
+    result = filter_certificates(
+        FilterRequest(
+            input=bundle,
+            output=tmp_path / "filtered.pem",
+            subject_cn="router",
+            overwrite=OverwritePolicy.VERSION,
+        ),
+    )
+
+    assert result.matched_count == 1
+    assert result.rejected_count == 1
+
+
+def test_filter_certificates_raises_when_no_match(tmp_path) -> None:
+    bundle = tmp_path / "bundle.pem"
+    bundle.write_text(make_self_signed_pem("router-edge"), encoding="utf-8")
+
+    with pytest.raises(ValidationError):
+        filter_certificates(
+            FilterRequest(
+                input=bundle,
+                output=tmp_path / "filtered.pem",
+                subject_cn="firewall",
+                overwrite=OverwritePolicy.VERSION,
+            ),
+        )
+
+
+def test_filter_certificates_raises_when_no_valid_records(tmp_path) -> None:
+    bundle = tmp_path / "bundle.pem"
+    bundle.write_text("invalid", encoding="utf-8")
+
+    with pytest.raises(ValidationError, match="No valid certificates found in input bundle"):
+        filter_certificates(
+            FilterRequest(
+                input=bundle,
+                output=tmp_path / "filtered.pem",
+                on_invalid=InvalidCertPolicy.SKIP,
+                overwrite=OverwritePolicy.VERSION,
+            ),
+        )
+
+
+def test_matches_filter_excludes_expired_certificates() -> None:
+    expired_record = CertificateRecord(
+        subject="CN=expired",
+        issuer="CN=ca",
+        serial="0x1",
+        not_before=datetime.now(tz=UTC) - timedelta(days=365),
+        not_after=datetime.now(tz=UTC) - timedelta(days=1),
+        fingerprint_sha256="abc123",
+        pem_text="-----BEGIN CERTIFICATE-----\nX\n-----END CERTIFICATE-----",
+        subject_common_name="expired",
+        issuer_common_name="ca",
+    )
+    active_record = CertificateRecord(
+        subject="CN=active",
+        issuer="CN=ca",
+        serial="0x2",
+        not_before=datetime.now(tz=UTC) - timedelta(days=10),
+        not_after=datetime.now(tz=UTC) + timedelta(days=10),
+        fingerprint_sha256="def456",
+        pem_text="-----BEGIN CERTIFICATE-----\nX\n-----END CERTIFICATE-----",
+        subject_common_name="active",
+        issuer_common_name="ca",
+    )
+    request = FilterRequest(
+        input=Path("in.pem"),
+        output=Path("out.pem"),
+        exclude_expired=True,
+    )
+
+    assert matches_filter(expired_record, request) is False
+    assert matches_filter(active_record, request) is True
+
+
+def test_matches_filter_normalizes_naive_datetime_filters() -> None:
+    record = CertificateRecord(
+        subject="CN=active",
+        issuer="CN=ca",
+        serial="0x2",
+        not_before=datetime.now(tz=UTC) - timedelta(days=10),
+        not_after=datetime.now(tz=UTC) + timedelta(days=10),
+        fingerprint_sha256="def456",
+        pem_text="-----BEGIN CERTIFICATE-----\nX\n-----END CERTIFICATE-----",
+        subject_common_name="active",
+        issuer_common_name="ca",
+    )
+    request = FilterRequest(
+        input=Path("in.pem"),
+        output=Path("out.pem"),
+        not_after_lt=datetime(2099, 1, 1, tzinfo=UTC).replace(tzinfo=None),
+    )
+
+    assert request.not_after_lt is not None
+    assert request.not_after_lt.tzinfo is UTC
+    assert matches_filter(record, request) is True

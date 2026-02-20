@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from certificate_manipulation.adapters.filesystem_io import (
@@ -22,6 +23,8 @@ from certificate_manipulation.domain.models import (
     CombineResult,
     ConvertRequest,
     ConvertResult,
+    FilterRequest,
+    FilterResult,
     OperationReport,
     SplitRequest,
     SplitResult,
@@ -164,6 +167,47 @@ def convert(request: ConvertRequest) -> ConvertResult:
     return ConvertResult(output_path=output_path, report=report)
 
 
+def filter_certificates(request: FilterRequest) -> FilterResult:
+    """Filter certificates from an input bundle and write matching ones.
+
+    Args:
+        request (FilterRequest): Filter request.
+
+    Raises:
+        ValidationError: If no certificate matches filter criteria.
+
+    Returns:
+        FilterResult: Filter operation result and report.
+    """
+    text = read_text_file(request.input)
+    records, warnings, invalid_count = parse_with_policy(text, request.on_invalid)
+    if not records:
+        raise ValidationError(message="No valid certificates found in input bundle")
+
+    filtered = [record for record in records if matches_filter(record, request)]
+    if not filtered:
+        raise ValidationError(message="No certificates matched filter criteria")
+
+    output_path = resolve_output_path(request.output, request.overwrite)
+    bundle_text = "\n".join(record.pem_text for record in filtered).strip() + "\n"
+    write_text_file(output_path, bundle_text)
+
+    rejected_count = len(records) - len(filtered)
+    report = OperationReport(
+        processed=len(records) + invalid_count,
+        written=len(filtered),
+        skipped=rejected_count + invalid_count,
+        invalid_count=invalid_count,
+        warnings=warnings,
+    )
+    return FilterResult(
+        output_path=output_path,
+        matched_count=len(filtered),
+        rejected_count=rejected_count,
+        report=report,
+    )
+
+
 def write_split_outputs(*, records: list[CertificateRecord], request: SplitRequest) -> list[Path]:
     """Write split outputs to disk.
 
@@ -252,3 +296,35 @@ def parse_with_policy(
             invalid_count += 1
             warnings.append("Skipped invalid certificate block from input bundle")
     return records, warnings, invalid_count
+
+
+def matches_filter(record: CertificateRecord, request: FilterRequest) -> bool:
+    """Check whether one record matches filter constraints.
+
+    Args:
+        record (CertificateRecord): Certificate record to evaluate.
+        request (FilterRequest): Filter constraints.
+
+    Returns:
+        bool: `True` when record matches all active constraints.
+    """
+    if request.subject_cn:
+        subject_cn = (record.subject_common_name or "").lower()
+        if request.subject_cn.lower() not in subject_cn:
+            return False
+
+    if request.issuer_cn:
+        issuer_cn = (record.issuer_common_name or "").lower()
+        if request.issuer_cn.lower() not in issuer_cn:
+            return False
+
+    if request.not_after_lt and not (record.not_after < request.not_after_lt):
+        return False
+
+    if request.not_before_gt and not (record.not_before > request.not_before_gt):
+        return False
+
+    if request.exclude_expired and record.not_after <= datetime.now(tz=UTC):
+        return False
+
+    return not request.fingerprint or request.fingerprint.lower() == record.fingerprint_sha256.lower()

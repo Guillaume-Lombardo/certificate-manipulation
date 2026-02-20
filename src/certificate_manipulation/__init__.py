@@ -8,6 +8,8 @@ from certificate_manipulation.domain import (
     CombineResult,
     ConvertRequest,
     ConvertResult,
+    FilterRequest,
+    FilterResult,
     InvalidCertPolicy,
     OperationReport,
     OutputExt,
@@ -26,7 +28,12 @@ from certificate_manipulation.exceptions import (
     ValidationError,
 )
 from certificate_manipulation.logging import configure_logging, get_logger
-from certificate_manipulation.services.bundle_service import combine, convert, split
+from certificate_manipulation.services.bundle_service import (
+    combine,
+    convert,
+    filter_certificates,
+    split,
+)
 from certificate_manipulation.settings import Settings, get_settings
 
 __version__ = "0.1.0"
@@ -40,6 +47,8 @@ __all__ = [
     "CombineResult",
     "ConvertRequest",
     "ConvertResult",
+    "FilterRequest",
+    "FilterResult",
     "InvalidCertPolicy",
     "OperationError",
     "OperationReport",
@@ -57,6 +66,7 @@ __all__ = [
     "combine",
     "configure_logging",
     "convert",
+    "filter_certificates",
     "get_logger",
     "get_settings",
     "run_async",

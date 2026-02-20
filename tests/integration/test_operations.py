@@ -12,10 +12,16 @@ from certificate_manipulation.domain.enums import (
 from certificate_manipulation.domain.models import (
     CombineRequest,
     ConvertRequest,
+    FilterRequest,
     SplitRequest,
 )
 from certificate_manipulation.exceptions import CertificateParseError
-from certificate_manipulation.services.bundle_service import combine, convert, split
+from certificate_manipulation.services.bundle_service import (
+    combine,
+    convert,
+    filter_certificates,
+    split,
+)
 from tests.cert_factory import make_self_signed_pem
 
 
@@ -90,3 +96,22 @@ def test_convert_versions_when_output_exists(tmp_path) -> None:
     )
 
     assert result.output_path.name == "edge.v2.pem"
+
+
+def test_filter_selects_expected_certificates(tmp_path) -> None:
+    pem_1 = make_self_signed_pem("branch-router")
+    pem_2 = make_self_signed_pem("branch-switch")
+    bundle = tmp_path / "bundle.pem"
+    bundle.write_text(f"{pem_1}\n{pem_2}", encoding="utf-8")
+
+    result = filter_certificates(
+        FilterRequest(
+            input=bundle,
+            output=tmp_path / "router-only.pem",
+            subject_cn="router",
+            overwrite=OverwritePolicy.VERSION,
+        ),
+    )
+
+    assert result.matched_count == 1
+    assert result.rejected_count == 1

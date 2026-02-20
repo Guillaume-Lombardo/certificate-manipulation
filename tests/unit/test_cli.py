@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import UTC
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,7 @@ from certificate_manipulation.domain.enums import (
 from certificate_manipulation.domain.models import (
     CombineResult,
     ConvertResult,
+    FilterResult,
     OperationReport,
     SplitResult,
 )
@@ -189,6 +191,46 @@ def test_main_convert_success_returns_zero(mocker) -> None:
     assert result == 0
 
 
+def test_main_filter_success_returns_zero(mocker) -> None:
+    args = argparse.Namespace(
+        command="filter",
+        input="bundle.pem",
+        output="filtered.pem",
+        subject_cn="router",
+        issuer_cn=None,
+        not_after_lt=None,
+        not_before_gt=None,
+        fingerprint=None,
+        exclude_expired=True,
+        on_invalid="fail",
+        overwrite="version",
+    )
+    parser = mocker.Mock()
+    parser.parse_args.return_value = args
+    mocker.patch("certificate_manipulation.cli.build_parser", return_value=parser)
+    mocker.patch("certificate_manipulation.cli.configure_logging")
+    mocker.patch("certificate_manipulation.cli.get_logger")
+    mocker.patch(
+        "certificate_manipulation.cli.filter_certificates",
+        return_value=FilterResult(
+            output_path=Path("filtered.pem"),
+            matched_count=1,
+            rejected_count=2,
+            report=OperationReport(
+                processed=3,
+                written=1,
+                skipped=2,
+                invalid_count=0,
+                warnings=[],
+            ),
+        ),
+    )
+
+    result = cli.main()
+
+    assert result == 0
+
+
 def test_validate_cli_args_for_each_command() -> None:
     combine_args = argparse.Namespace(
         command="combine",
@@ -216,10 +258,24 @@ def test_validate_cli_args_for_each_command() -> None:
         to="pem",
         overwrite="version",
     )
+    filter_args = argparse.Namespace(
+        command="filter",
+        input="bundle.pem",
+        output="filtered.pem",
+        subject_cn="router",
+        issuer_cn=None,
+        not_after_lt=None,
+        not_before_gt=None,
+        fingerprint=None,
+        exclude_expired=False,
+        on_invalid="fail",
+        overwrite="version",
+    )
 
     parsed_combine = cli.validate_cli_args(combine_args)
     parsed_split = cli.validate_cli_args(split_args)
     parsed_convert = cli.validate_cli_args(convert_args)
+    parsed_filter = cli.validate_cli_args(filter_args)
 
     assert isinstance(parsed_combine, cli.CombineCliArgs)
     assert parsed_combine.command == CliCommand.COMBINE
@@ -235,3 +291,30 @@ def test_validate_cli_args_for_each_command() -> None:
     assert isinstance(parsed_convert, cli.ConvertCliArgs)
     assert parsed_convert.command == CliCommand.CONVERT
     assert parsed_convert.to == OutputExt.PEM
+
+    assert isinstance(parsed_filter, cli.FilterCliArgs)
+    assert parsed_filter.command == CliCommand.FILTER
+    assert parsed_filter.subject_cn == "router"
+    assert parsed_filter.exclude_expired is False
+
+
+def test_validate_cli_args_filter_normalizes_naive_datetimes() -> None:
+    filter_args = argparse.Namespace(
+        command="filter",
+        input="bundle.pem",
+        output="filtered.pem",
+        subject_cn=None,
+        issuer_cn=None,
+        not_after_lt="2030-01-01T00:00:00",
+        not_before_gt=None,
+        fingerprint=None,
+        exclude_expired=False,
+        on_invalid="fail",
+        overwrite="version",
+    )
+
+    parsed_filter = cli.validate_cli_args(filter_args)
+
+    assert isinstance(parsed_filter, cli.FilterCliArgs)
+    assert parsed_filter.not_after_lt is not None
+    assert parsed_filter.not_after_lt.tzinfo is UTC

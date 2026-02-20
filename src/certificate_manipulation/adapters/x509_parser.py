@@ -53,6 +53,15 @@ def parse_single_pem(pem_text: str) -> CertificateRecord:
     if subject_cn_attributes:
         raw_cn = subject_cn_attributes[0].value
         subject_cn = raw_cn.decode("utf-8", errors="replace") if isinstance(raw_cn, bytes) else raw_cn
+    issuer_cn = None
+    issuer_cn_attributes = certificate.issuer.get_attributes_for_oid(NameOID.COMMON_NAME)
+    if issuer_cn_attributes:
+        raw_issuer_cn = issuer_cn_attributes[0].value
+        issuer_cn = (
+            raw_issuer_cn.decode("utf-8", errors="replace")
+            if isinstance(raw_issuer_cn, bytes)
+            else raw_issuer_cn
+        )
 
     canonical_pem = certificate.public_bytes(Encoding.PEM).decode("utf-8").strip()
     fingerprint = certificate.fingerprint(hashes.SHA256()).hex()
@@ -66,6 +75,7 @@ def parse_single_pem(pem_text: str) -> CertificateRecord:
         fingerprint_sha256=fingerprint,
         pem_text=canonical_pem,
         subject_common_name=subject_cn,
+        issuer_common_name=issuer_cn,
     )
 
 

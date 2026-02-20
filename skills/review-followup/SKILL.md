@@ -29,16 +29,19 @@ Process GitHub PR review comments end-to-end:
    - implement fixes for `valid`,
    - implement minimal safe adjustments for `partially valid`,
    - do not implement `not needed` and document rationale in PR discussion.
-7. Apply code/test/documentation fixes for valid items.
-8. Run quality gates:
+7. For each review thread, post a follow-up comment that states:
+   - what change resolved it, or
+   - why it was not implemented.
+8. Apply code/test/documentation fixes for valid items.
+9. Run quality gates:
    - `uv run ruff check .`
    - `uv run ty check src tests`
    - `uv run pytest -m unit`
    - `uv run pytest -m integration`
    - `uv run pytest -m end2end`
-9. Commit and push.
-10. Resolve threads for addressed comments via GraphQL mutation `resolveReviewThread`.
-11. Report what was fixed, which threads were resolved, and what was intentionally not changed.
+10. Commit and push.
+11. Resolve threads for addressed comments via GraphQL mutation `resolveReviewThread`, only after the follow-up comment is posted.
+12. Report what was fixed, which threads were resolved, and what was intentionally not changed.
 
 ## Thread resolution note
 
@@ -46,3 +49,4 @@ Only resolve a thread when:
 
 - code or docs were actually updated to address it, or
 - a clear rationale is provided in PR discussion for rejecting it.
+- and the thread contains a final follow-up comment summarizing the resolution status.

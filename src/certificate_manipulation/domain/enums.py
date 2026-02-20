@@ -49,3 +49,4 @@ class CliCommand(StrEnum):
     COMBINE = "combine"
     SPLIT = "split"
     CONVERT = "convert"
+    FILTER = "filter"
