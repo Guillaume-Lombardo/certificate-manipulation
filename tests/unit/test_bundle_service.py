@@ -25,10 +25,15 @@ from certificate_manipulation.services.bundle_service import (
     convert,
     filter_certificates,
     matches_filter,
-    parse_with_policy,
+    parse_file_with_policy,
     split,
 )
-from tests.cert_factory import make_self_signed_pem
+from tests.cert_factory import (
+    make_pkcs7_bundle_der,
+    make_pkcs7_bundle_pem,
+    make_self_signed_der,
+    make_self_signed_pem,
+)
 
 
 def test_combine_deduplicates_by_fingerprint(tmp_path) -> None:
@@ -159,12 +164,14 @@ def test_convert_success_with_extension_change(tmp_path) -> None:
     assert result.report.written == 1
 
 
-def test_parse_with_policy_skip_invalid_blocks() -> None:
+def test_parse_file_with_policy_skip_invalid_blocks(tmp_path) -> None:
     valid = make_self_signed_pem("policy-ca")
     broken_block = "-----BEGIN CERTIFICATE-----\nINVALID\n-----END CERTIFICATE-----"
+    bundle = tmp_path / "mixed.pem"
+    bundle.write_text(f"{valid}\n{broken_block}", encoding="utf-8")
 
-    records, warnings, invalid_count = parse_with_policy(
-        f"{valid}\n{broken_block}",
+    records, warnings, invalid_count = parse_file_with_policy(
+        bundle,
         InvalidCertPolicy.SKIP,
     )
 
@@ -173,9 +180,101 @@ def test_parse_with_policy_skip_invalid_blocks() -> None:
     assert invalid_count == 1
 
 
-def test_parse_with_policy_fail_raises() -> None:
+def test_parse_file_with_policy_fail_raises(tmp_path) -> None:
+    invalid = tmp_path / "broken.pem"
+    invalid.write_text("not a certificate", encoding="utf-8")
+
     with pytest.raises(CertificateParseError):
-        parse_with_policy("not a certificate", InvalidCertPolicy.FAIL)
+        parse_file_with_policy(invalid, InvalidCertPolicy.FAIL)
+
+
+def test_split_accepts_der_input(tmp_path) -> None:
+    der_input = tmp_path / "single.der"
+    der_input.write_bytes(make_self_signed_der("der-input"))
+
+    result = split(
+        SplitRequest(
+            input=der_input,
+            output_dir=tmp_path / "split-der",
+            ext=OutputExt.CRT,
+            filename_template=SplitNamingStrategy.CN,
+            on_invalid=InvalidCertPolicy.FAIL,
+            overwrite=OverwritePolicy.VERSION,
+        ),
+    )
+
+    assert len(result.output_paths) == 1
+    content = result.output_paths[0].read_text(encoding="utf-8")
+    assert "BEGIN CERTIFICATE" in content
+
+
+def test_filter_accepts_p7b_input(tmp_path) -> None:
+    p7b_input = tmp_path / "bundle.p7b"
+    p7b_input.write_text(make_pkcs7_bundle_pem(["p7b-router", "p7b-switch"]), encoding="utf-8")
+
+    result = filter_certificates(
+        FilterRequest(
+            input=p7b_input,
+            output=tmp_path / "p7b-filtered.pem",
+            subject_cn="router",
+            overwrite=OverwritePolicy.VERSION,
+        ),
+    )
+
+    assert result.matched_count == 1
+
+
+def test_parse_file_with_policy_skip_invalid_der_file(tmp_path) -> None:
+    invalid_der = tmp_path / "invalid.der"
+    invalid_der.write_bytes(b"broken-der")
+
+    records, warnings, invalid_count = parse_file_with_policy(invalid_der, InvalidCertPolicy.SKIP)
+
+    assert records == []
+    assert invalid_count == 1
+    assert warnings
+
+
+def test_parse_file_with_policy_skip_invalid_p7b_file(tmp_path) -> None:
+    invalid_p7b = tmp_path / "invalid.p7b"
+    invalid_p7b.write_bytes(b"broken-p7b")
+
+    records, warnings, invalid_count = parse_file_with_policy(invalid_p7b, InvalidCertPolicy.SKIP)
+
+    assert records == []
+    assert invalid_count == 1
+    assert warnings
+
+
+def test_filter_skip_invalid_p7b_raises_validation_error(tmp_path) -> None:
+    invalid_p7b = tmp_path / "invalid.p7b"
+    invalid_p7b.write_bytes(b"broken-p7b")
+
+    with pytest.raises(ValidationError, match="No valid certificates found in input bundle"):
+        filter_certificates(
+            FilterRequest(
+                input=invalid_p7b,
+                output=tmp_path / "filtered.pem",
+                on_invalid=InvalidCertPolicy.SKIP,
+                overwrite=OverwritePolicy.VERSION,
+            ),
+        )
+
+
+def test_filter_accepts_der_encoded_p7b_input(tmp_path) -> None:
+    p7b_input = tmp_path / "bundle-der.p7b"
+    p7b_input.write_bytes(make_pkcs7_bundle_der(["p7b-der-router", "p7b-der-switch"]))
+
+    result = filter_certificates(
+        FilterRequest(
+            input=p7b_input,
+            output=tmp_path / "p7b-der-filtered.pem",
+            subject_cn="router",
+            overwrite=OverwritePolicy.VERSION,
+        ),
+    )
+
+    assert result.matched_count == 1
 
 
 def test_filter_certificates_by_subject_cn(tmp_path) -> None:

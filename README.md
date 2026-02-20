@@ -2,6 +2,12 @@
 
 Consolidate, split, filter certificates.
 
+Input formats currently supported:
+
+- PEM/CRT (`.pem`, `.crt`)
+- DER/CER (`.der`, `.cer`)
+- PKCS7 bundles (`.p7b`, `.p7c`)
+
 ## Quickstart
 
 ```bash
@@ -19,6 +25,7 @@ uv run pre-commit run --all-files
 ```bash
 uv tool run certificate-manipulation --help
 uv tool run certificate-manipulation combine --inputs ./a.crt ./b.pem --output ./bundle.pem
+uv tool run certificate-manipulation combine --inputs ./a.crt ./b.der ./chain.p7b --output ./bundle.pem
 uv tool run certificate-manipulation split --input ./bundle.pem --output-dir ./out --ext crt
 uv tool run certificate-manipulation convert --input ./a.crt --output ./a.pem --to pem
 uv tool run certificate-manipulation filter --input ./bundle.pem --output ./filtered.pem --subject-cn router
