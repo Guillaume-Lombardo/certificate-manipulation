@@ -9,7 +9,7 @@ from certificate_manipulation.exceptions import ValidationError
 if TYPE_CHECKING:
     from pathlib import Path
 
-SUPPORTED_EXTENSIONS = {".pem", ".crt"}
+SUPPORTED_EXTENSIONS = {".pem", ".crt", ".cer", ".der", ".p7b", ".p7c"}
 
 
 def collect_input_files(inputs: list[Path], *, recursive: bool) -> list[Path]:

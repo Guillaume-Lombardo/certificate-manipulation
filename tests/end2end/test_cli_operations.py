@@ -13,7 +13,7 @@ from cryptography.hazmat.primitives.serialization import Encoding
 from cryptography.x509.oid import NameOID
 
 from certificate_manipulation.adapters.x509_parser import parse_many_from_text
-from tests.cert_factory import make_self_signed_pem
+from tests.cert_factory import make_self_signed_der, make_self_signed_pem
 
 
 def run_cli(args: list[str]) -> CompletedProcess[str]:
@@ -156,3 +156,26 @@ def test_cli_filter_exclude_expired(tmp_path) -> None:
     filtered_records = parse_many_from_text(filtered.read_text(encoding="utf-8"))
     assert len(filtered_records) == 1
     assert filtered_records[0].subject_common_name == "core-active"
+
+
+def test_cli_combine_accepts_der_input(tmp_path) -> None:
+    cert_pem = tmp_path / "a.crt"
+    cert_der = tmp_path / "b.der"
+    cert_pem.write_text(make_self_signed_pem("router-pem"), encoding="utf-8")
+    cert_der.write_bytes(make_self_signed_der("router-der"))
+
+    bundle = tmp_path / "bundle.pem"
+    combine = run_cli(
+        [
+            "combine",
+            "--inputs",
+            str(cert_pem),
+            str(cert_der),
+            "--output",
+            str(bundle),
+        ],
+    )
+
+    assert combine.returncode == 0
+    records = parse_many_from_text(bundle.read_text(encoding="utf-8"))
+    assert len(records) == 2

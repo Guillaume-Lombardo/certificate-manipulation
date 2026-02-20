@@ -167,9 +167,42 @@ Definition of Done:
 
 ## Assumptions
 
-- V1 limitée à PEM/CRT
+- V1 historique limitée à PEM/CRT (extension en cours via R1 vers DER/P7B)
 - Pas de clés privées en V1
 - `filter` en phase 2
 - default invalid policy = `fail`
 - default overwrite policy = `version`
 - usage local filesystem uniquement en V1
+
+## Roadmap suivante (post phase 3)
+
+### R1 — Formats supplémentaires
+
+- Support d’entrée `DER/CER` (`.der`, `.cer`)
+- Support d’entrée `PKCS7` (`.p7b`, `.p7c`)
+- Maintenir une sortie normalisée PEM/CRT en V1/V2
+
+### R2 — Filtres avancés
+
+- Support regex optionnel pour CN/issuer
+- Modes de combinaison des critères (`AND` par défaut + `OR` optionnel)
+
+### R3 — Rapports machine-readable
+
+- Option CLI d’export rapport JSON (`processed/written/skipped/invalid/warnings`)
+- Format stable pour CI et outillage ops
+
+### R4 — Performance continue
+
+- Industrialiser les benchmarks en CI (seuils indicatifs + tendance)
+
+### R5 — Stabilisation release 1.0
+
+- Geler les contrats CLI/API
+- Ajouter changelog formel
+- Durcir le process de release
+
+## Statut d’implémentation roadmap
+
+- Démarré: R1 (support DER/P7B) avec tests unit/integration/end2end.
+- À démarrer: R2, R3, R4, R5.

@@ -1,4 +1,4 @@
-"""X.509 PEM parser helpers based on cryptography."""
+"""X.509 parser helpers based on cryptography."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path  # noqa: TC003
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.serialization import Encoding
+from cryptography.hazmat.primitives.serialization import Encoding, pkcs7
 from cryptography.x509.oid import NameOID
 
 from certificate_manipulation.domain.models import CertificateRecord
@@ -47,7 +47,18 @@ def parse_single_pem(pem_text: str) -> CertificateRecord:
         certificate = x509.load_pem_x509_certificate(pem_text.encode("utf-8"))
     except Exception as exc:
         raise CertificateParseError(exc=exc) from exc
+    return parse_certificate(certificate)
 
+
+def parse_certificate(certificate: x509.Certificate) -> CertificateRecord:
+    """Convert one cryptography certificate to a normalized record.
+
+    Args:
+        certificate (x509.Certificate): Parsed certificate object.
+
+    Returns:
+        CertificateRecord: Normalized metadata and canonical PEM payload.
+    """
     subject_cn = None
     subject_cn_attributes = certificate.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
     if subject_cn_attributes:
@@ -97,8 +108,44 @@ def parse_many_from_text(text: str) -> list[CertificateRecord]:
     return [parse_single_pem(block) for block in pem_blocks]
 
 
+def parse_many_from_bytes(data: bytes, *, suffix: str) -> list[CertificateRecord]:
+    """Parse certificates from DER/PEM/PKCS7 raw bytes.
+
+    Args:
+        data (bytes): Raw certificate payload.
+        suffix (str): Lowercase source extension suffix (including dot).
+
+    Raises:
+        CertificateParseError: If payload cannot be parsed as certificates.
+
+    Returns:
+        list[CertificateRecord]: Parsed certificates.
+    """
+    if suffix in {".p7b", ".p7c"}:
+        try:
+            certificates = (
+                pkcs7.load_pem_pkcs7_certificates(data)
+                if b"-----BEGIN" in data
+                else pkcs7.load_der_pkcs7_certificates(data)
+            )
+        except Exception as exc:
+            raise CertificateParseError(exc=exc) from exc
+        if not certificates:
+            raise CertificateParseError(message="No certificates found in PKCS7 payload")
+        return [parse_certificate(certificate) for certificate in certificates]
+
+    if suffix in {".der", ".cer"}:
+        try:
+            certificate = x509.load_der_x509_certificate(data)
+        except Exception as exc:
+            raise CertificateParseError(exc=exc) from exc
+        return [parse_certificate(certificate)]
+
+    return parse_many_from_text(data.decode("utf-8"))
+
+
 def load_from_file(path: Path) -> list[CertificateRecord]:
-    """Load and parse certificates from a UTF-8 file.
+    """Load and parse certificates from a local file.
 
     Args:
         path (Path): Input certificate file path.
@@ -106,5 +153,6 @@ def load_from_file(path: Path) -> list[CertificateRecord]:
     Returns:
         list[CertificateRecord]: Parsed certificates.
     """
-    text = path.read_text(encoding="utf-8")
-    return parse_many_from_text(text)
+    data = path.read_bytes()
+    suffix = path.suffix.lower()
+    return parse_many_from_bytes(data, suffix=suffix)

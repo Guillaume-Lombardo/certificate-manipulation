@@ -7,13 +7,11 @@ from typing import TYPE_CHECKING
 
 from certificate_manipulation.adapters.filesystem_io import (
     collect_input_files,
-    read_text_file,
     write_text_file,
 )
 from certificate_manipulation.adapters.x509_parser import (
     extract_pem_blocks,
     load_from_file,
-    parse_many_from_text,
     parse_single_pem,
 )
 from certificate_manipulation.domain.enums import InvalidCertPolicy, SortMode
@@ -59,10 +57,9 @@ def combine(request: CombineRequest) -> CombineResult:
     invalid_count = 0
 
     for input_file in files:
-        text = read_text_file(input_file)
         try:
-            file_records, file_warnings, file_invalid_count = parse_with_policy(
-                text,
+            file_records, file_warnings, file_invalid_count = parse_file_with_policy(
+                input_file,
                 request.on_invalid,
             )
         except CertificateParseError:
@@ -119,8 +116,7 @@ def split(request: SplitRequest) -> SplitResult:
     Returns:
         SplitResult: Operation result and report.
     """
-    text = read_text_file(request.input)
-    records, warnings, invalid_count = parse_with_policy(text, request.on_invalid)
+    records, warnings, invalid_count = parse_file_with_policy(request.input, request.on_invalid)
     if not records:
         raise ValidationError(message="No valid certificates found in input bundle")
 
@@ -179,8 +175,7 @@ def filter_certificates(request: FilterRequest) -> FilterResult:
     Returns:
         FilterResult: Filter operation result and report.
     """
-    text = read_text_file(request.input)
-    records, warnings, invalid_count = parse_with_policy(text, request.on_invalid)
+    records, warnings, invalid_count = parse_file_with_policy(request.input, request.on_invalid)
     if not records:
         raise ValidationError(message="No valid certificates found in input bundle")
 
@@ -270,21 +265,25 @@ def deduplicate_records(records: list[CertificateRecord]) -> list[CertificateRec
     return deduped
 
 
-def parse_with_policy(
-    text: str,
+def parse_file_with_policy(
+    input_path: Path,
     policy: InvalidCertPolicy,
 ) -> tuple[list[CertificateRecord], list[str], int]:
-    """Parse bundle text with invalid-certificate policy.
+    """Parse one input file with invalid-certificate policy.
 
     Args:
-        text (str): Bundle content.
+        input_path (Path): Source certificate path.
         policy (InvalidCertPolicy): Invalid certificate policy.
 
     Returns:
         tuple[list[CertificateRecord], list[str], int]: Records, warnings, invalid count.
     """
+    if input_path.suffix.lower() in {".der", ".cer", ".p7b", ".p7c"}:
+        return load_from_file(input_path), [], 0
+
+    text = input_path.read_text(encoding="utf-8")
     if policy == InvalidCertPolicy.FAIL:
-        return parse_many_from_text(text), [], 0
+        return load_from_file(input_path), [], 0
 
     records: list[CertificateRecord] = []
     warnings: list[str] = []

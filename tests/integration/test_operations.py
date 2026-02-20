@@ -22,7 +22,7 @@ from certificate_manipulation.services.bundle_service import (
     filter_certificates,
     split,
 )
-from tests.cert_factory import make_self_signed_pem
+from tests.cert_factory import make_pkcs7_bundle_pem, make_self_signed_der, make_self_signed_pem
 
 
 def test_combine_fail_and_skip_invalid(tmp_path) -> None:
@@ -115,3 +115,24 @@ def test_filter_selects_expected_certificates(tmp_path) -> None:
 
     assert result.matched_count == 1
     assert result.rejected_count == 1
+
+
+def test_combine_supports_der_and_p7b_inputs(tmp_path) -> None:
+    der_input = tmp_path / "edge.der"
+    der_input.write_bytes(make_self_signed_der("der-combine"))
+    p7b_input = tmp_path / "chain.p7b"
+    p7b_input.write_text(make_pkcs7_bundle_pem(["p7b-a", "p7b-b"]), encoding="utf-8")
+
+    result = combine(
+        CombineRequest(
+            inputs=[der_input, p7b_input],
+            recursive=False,
+            output=tmp_path / "bundle.pem",
+            deduplicate=True,
+            sort=SortMode.INPUT,
+            on_invalid=InvalidCertPolicy.FAIL,
+            overwrite=OverwritePolicy.VERSION,
+        ),
+    )
+
+    assert result.certificate_count == 3
