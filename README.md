@@ -41,17 +41,23 @@ Run a basic performance check on a generated large bundle:
 
 ```bash
 uv run python scripts/benchmark_large_bundle.py --cert-count 500
+uv run python scripts/benchmark_large_bundle.py --cert-count 500 --clean --workdir .benchmarks/local --output-json .benchmarks/local/report.json --thresholds-file benchmarks/ci_thresholds.json
 ```
 
 The script prints JSON timings for `combine`, `split`, and `filter`.
 If the workdir already exists, rerun with `--clean`.
 
-### Exit Codes
+### CLI Exit Codes (`certificate-manipulation`)
 
 - `0`: Success
 - `1`: Validation error
 - `2`: Runtime/parse error
 - `3`: Partial success (`--on-invalid skip` with rejected certificates)
+
+### Benchmark Script Exit Codes (`scripts/benchmark_large_bundle.py`)
+
+- `0`: Benchmark completed and all configured thresholds passed
+- `2`: At least one benchmark timing exceeded configured thresholds
 
 ## Troubleshooting
 

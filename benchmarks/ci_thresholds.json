@@ -1,0 +1,5 @@
+{
+  "combine_max_seconds": 20.0,
+  "filter_max_seconds": 20.0,
+  "split_max_seconds": 20.0
+}

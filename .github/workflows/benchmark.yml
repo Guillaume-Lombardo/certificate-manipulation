@@ -1,0 +1,64 @@
+name: Benchmark
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  large-bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Run benchmark with thresholds
+        run: |
+          uv run python scripts/benchmark_large_bundle.py \
+            --cert-count 500 \
+            --workdir .benchmarks/ci \
+            --clean \
+            --thresholds-file benchmarks/ci_thresholds.json \
+            --output-json .benchmarks/ci/report.json
+
+      - name: Add benchmark summary
+        if: always()
+        run: |
+          uv run python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+
+          print("## Large Bundle Benchmark")
+          print()
+          report_path = Path(".benchmarks/ci/report.json")
+          if not report_path.is_file():
+              print("- report: `not available (benchmark step failed or report missing)`")
+          else:
+              report = json.loads(report_path.read_text(encoding="utf-8"))
+              timings = report["timings_seconds"]
+              print(f"- cert_count: `{report['cert_count']}`")
+              print(f"- combine: `{timings['combine']:.4f}s`")
+              print(f"- split: `{timings['split']:.4f}s`")
+              print(f"- filter: `{timings['filter']:.4f}s`")
+          PY
+
+      - name: Upload benchmark artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-large-bundle
+          path: .benchmarks/ci/report.json
+          if-no-files-found: warn
