@@ -73,12 +73,21 @@ If the workdir already exists, rerun with `--clean`.
 - `tests/unit`: fast default tests
 - `tests/integration`: component-level tests
 - `tests/end2end`: user-facing behavior tests
+- `docs/engineering/CONTRACTS.md`: frozen public CLI/API contracts
+- `docs/engineering/RELEASE_RUNBOOK.md`: hardened release process
+- `CHANGELOG.md`: formal release history
 - `skills`: AI helper skills for coding workflows
 
 ## Release
 
-1. Bump `version` in `pyproject.toml`.
-2. Create and push a git tag: `vX.Y.Z`.
-3. GitHub Action publishes to PyPI.
+Follow `docs/engineering/RELEASE_RUNBOOK.md`.
+
+At minimum:
+
+1. Bump version in `pyproject.toml` and `src/certificate_manipulation/__init__.py`.
+2. Cut release notes from `CHANGELOG.md` (`Unreleased` -> `X.Y.Z` section).
+3. Build and verify artifacts (`python -m build`, `twine check dist/*`).
+4. Create and push git tag `vX.Y.Z`.
+5. Let GitHub Action publish.
 
 For manual validation, use workflow dispatch with `publish_target=testpypi`.
