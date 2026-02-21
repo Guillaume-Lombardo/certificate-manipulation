@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 from datetime import UTC, datetime
-from pathlib import Path  # noqa: TC003
+from pathlib import Path
 from typing import Annotated, Literal, assert_never
 
 from pydantic import BaseModel, Field, field_validator
@@ -50,6 +51,7 @@ class CombineCliArgs(BaseModel):
     sort: SortMode = SortMode.INPUT
     on_invalid: InvalidCertPolicy = InvalidCertPolicy.FAIL
     overwrite: OverwritePolicy = OverwritePolicy.VERSION
+    report_json: Path | None = None
 
 
 class SplitCliArgs(BaseModel):
@@ -62,6 +64,7 @@ class SplitCliArgs(BaseModel):
     filename_template: SplitNamingStrategy = SplitNamingStrategy.CN
     on_invalid: InvalidCertPolicy = InvalidCertPolicy.FAIL
     overwrite: OverwritePolicy = OverwritePolicy.VERSION
+    report_json: Path | None = None
 
 
 class ConvertCliArgs(BaseModel):
@@ -72,6 +75,7 @@ class ConvertCliArgs(BaseModel):
     output: Path
     to: OutputExt
     overwrite: OverwritePolicy = OverwritePolicy.VERSION
+    report_json: Path | None = None
 
 
 class FilterCliArgs(BaseModel):
@@ -91,6 +95,7 @@ class FilterCliArgs(BaseModel):
     logic: FilterLogicMode = FilterLogicMode.AND
     on_invalid: InvalidCertPolicy = InvalidCertPolicy.FAIL
     overwrite: OverwritePolicy = OverwritePolicy.VERSION
+    report_json: Path | None = None
 
     @field_validator("not_after_lt", "not_before_gt", mode="after")
     @classmethod
@@ -168,6 +173,209 @@ def log_operation_summary(
         )
 
 
+def write_operation_report_json(
+    *,
+    report_path: Path,
+    command: CliCommand,
+    report: OperationReport,
+    **extra: object,
+) -> None:
+    """Write one machine-readable operation report as JSON.
+
+    Args:
+        report_path (Path): Target report path.
+        command (CliCommand): Executed command.
+        report (OperationReport): Operation report payload.
+        **extra (object): Additional command-specific metadata.
+    """
+    payload = {
+        "command": command.value,
+        "report": report.model_dump(mode="json"),
+        "metadata": {key: str(value) if isinstance(value, Path) else value for key, value in extra.items()},
+    }
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(f"{json.dumps(payload, indent=2, sort_keys=True)}\n", encoding="utf-8")
+
+
+def run_combine_command(args: CombineCliArgs, logger: OperationLogger) -> int:
+    """Execute combine command from validated CLI args.
+
+    Args:
+        args (CombineCliArgs): Validated CLI arguments.
+        logger (OperationLogger): Operation logger instance.
+
+    Returns:
+        int: CLI exit code for this command.
+    """
+    result = combine(
+        CombineRequest(
+            inputs=args.inputs,
+            recursive=args.recursive,
+            output=args.output,
+            deduplicate=args.deduplicate,
+            sort=args.sort,
+            on_invalid=args.on_invalid,
+            overwrite=args.overwrite,
+        ),
+    )
+    log_operation_summary(
+        command=CliCommand.COMBINE,
+        logger=logger,
+        report=result.report,
+        output=str(result.output_path),
+        certificate_count=result.certificate_count,
+    )
+    if args.report_json is not None:
+        write_operation_report_json(
+            report_path=args.report_json,
+            command=CliCommand.COMBINE,
+            report=result.report,
+            output=result.output_path,
+            certificate_count=result.certificate_count,
+        )
+    return 3 if result.report.invalid_count > 0 else 0
+
+
+def run_split_command(args: SplitCliArgs, logger: OperationLogger) -> int:
+    """Execute split command from validated CLI args.
+
+    Args:
+        args (SplitCliArgs): Validated CLI arguments.
+        logger (OperationLogger): Operation logger instance.
+
+    Returns:
+        int: CLI exit code for this command.
+    """
+    result = split(
+        SplitRequest(
+            input=args.input,
+            output_dir=args.output_dir,
+            ext=args.ext,
+            filename_template=args.filename_template,
+            on_invalid=args.on_invalid,
+            overwrite=args.overwrite,
+        ),
+    )
+    log_operation_summary(
+        command=CliCommand.SPLIT,
+        logger=logger,
+        report=result.report,
+        output_dir=str(args.output_dir),
+        outputs_written=len(result.output_paths),
+    )
+    if args.report_json is not None:
+        write_operation_report_json(
+            report_path=args.report_json,
+            command=CliCommand.SPLIT,
+            report=result.report,
+            output_dir=args.output_dir,
+            outputs_written=len(result.output_paths),
+        )
+    return 3 if result.report.invalid_count > 0 else 0
+
+
+def run_convert_command(args: ConvertCliArgs, logger: OperationLogger) -> int:
+    """Execute convert command from validated CLI args.
+
+    Args:
+        args (ConvertCliArgs): Validated CLI arguments.
+        logger (OperationLogger): Operation logger instance.
+
+    Returns:
+        int: CLI exit code for this command.
+    """
+    result = convert(
+        ConvertRequest(
+            input=args.input,
+            output=args.output,
+            to=args.to,
+            overwrite=args.overwrite,
+        ),
+    )
+    log_operation_summary(
+        command=CliCommand.CONVERT,
+        logger=logger,
+        report=result.report,
+        output=str(result.output_path),
+    )
+    if args.report_json is not None:
+        write_operation_report_json(
+            report_path=args.report_json,
+            command=CliCommand.CONVERT,
+            report=result.report,
+            output=result.output_path,
+        )
+    return 0
+
+
+def run_filter_command(args: FilterCliArgs, logger: OperationLogger) -> int:
+    """Execute filter command from validated CLI args.
+
+    Args:
+        args (FilterCliArgs): Validated CLI arguments.
+        logger (OperationLogger): Operation logger instance.
+
+    Returns:
+        int: CLI exit code for this command.
+    """
+    result = filter_certificates(
+        FilterRequest(
+            input=args.input,
+            output=args.output,
+            subject_cn=args.subject_cn,
+            subject_cn_regex=args.subject_cn_regex,
+            issuer_cn=args.issuer_cn,
+            issuer_cn_regex=args.issuer_cn_regex,
+            not_after_lt=args.not_after_lt,
+            not_before_gt=args.not_before_gt,
+            fingerprint=args.fingerprint,
+            exclude_expired=args.exclude_expired,
+            logic=args.logic,
+            on_invalid=args.on_invalid,
+            overwrite=args.overwrite,
+        ),
+    )
+    log_operation_summary(
+        command=CliCommand.FILTER,
+        logger=logger,
+        report=result.report,
+        output=str(result.output_path),
+        matched=result.matched_count,
+        rejected=result.rejected_count,
+    )
+    if args.report_json is not None:
+        write_operation_report_json(
+            report_path=args.report_json,
+            command=CliCommand.FILTER,
+            report=result.report,
+            output=result.output_path,
+            matched=result.matched_count,
+            rejected=result.rejected_count,
+        )
+    return 3 if result.report.invalid_count > 0 else 0
+
+
+def dispatch_validated_command(args: ValidatedCliArgs, logger: OperationLogger) -> int:
+    """Dispatch validated arguments to the corresponding command runner.
+
+    Args:
+        args (ValidatedCliArgs): Validated CLI arguments.
+        logger (OperationLogger): Operation logger instance.
+
+    Returns:
+        int: CLI exit code for the selected command.
+    """
+    if isinstance(args, CombineCliArgs):
+        return run_combine_command(args, logger)
+    if isinstance(args, SplitCliArgs):
+        return run_split_command(args, logger)
+    if isinstance(args, ConvertCliArgs):
+        return run_convert_command(args, logger)
+    if isinstance(args, FilterCliArgs):
+        return run_filter_command(args, logger)
+    assert_never(args)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Create the command-line parser.
 
@@ -209,6 +417,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=OverwritePolicy.VERSION.value,
         help="Output collision strategy",
     )
+    combine_parser.add_argument(
+        "--report-json",
+        default=None,
+        help="Optional operation report output path (JSON)",
+    )
 
     split_parser = subparsers.add_parser(
         CliCommand.SPLIT.value,
@@ -240,6 +453,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=OverwritePolicy.VERSION.value,
         help="Output collision strategy",
     )
+    split_parser.add_argument(
+        "--report-json",
+        default=None,
+        help="Optional operation report output path (JSON)",
+    )
 
     convert_parser = subparsers.add_parser(
         CliCommand.CONVERT.value,
@@ -258,6 +476,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=[policy.value for policy in OverwritePolicy],
         default=OverwritePolicy.VERSION.value,
         help="Output collision strategy",
+    )
+    convert_parser.add_argument(
+        "--report-json",
+        default=None,
+        help="Optional operation report output path (JSON)",
     )
 
     filter_parser = subparsers.add_parser(
@@ -320,6 +543,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=OverwritePolicy.VERSION.value,
         help="Output collision strategy",
     )
+    filter_parser.add_argument(
+        "--report-json",
+        default=None,
+        help="Optional operation report output path (JSON)",
+    )
 
     return parser
 
@@ -369,101 +597,17 @@ def main() -> int:
     configure_logging(settings=get_settings())
     logger = get_logger("certificate_manipulation.cli")
 
+    exit_code = 0
     try:
         args = validate_cli_args(parsed_args)
-        exit_code = 0
-
-        if isinstance(args, CombineCliArgs):
-            result = combine(
-                CombineRequest(
-                    inputs=args.inputs,
-                    recursive=args.recursive,
-                    output=args.output,
-                    deduplicate=args.deduplicate,
-                    sort=args.sort,
-                    on_invalid=args.on_invalid,
-                    overwrite=args.overwrite,
-                ),
-            )
-            log_operation_summary(
-                command=CliCommand.COMBINE,
-                logger=logger,
-                report=result.report,
-                output=str(result.output_path),
-                certificate_count=result.certificate_count,
-            )
-            exit_code = 3 if result.report.invalid_count > 0 else 0
-        elif isinstance(args, SplitCliArgs):
-            result = split(
-                SplitRequest(
-                    input=args.input,
-                    output_dir=args.output_dir,
-                    ext=args.ext,
-                    filename_template=args.filename_template,
-                    on_invalid=args.on_invalid,
-                    overwrite=args.overwrite,
-                ),
-            )
-            log_operation_summary(
-                command=CliCommand.SPLIT,
-                logger=logger,
-                report=result.report,
-                output_dir=str(args.output_dir),
-                outputs_written=len(result.output_paths),
-            )
-            exit_code = 3 if result.report.invalid_count > 0 else 0
-        elif isinstance(args, ConvertCliArgs):
-            result = convert(
-                ConvertRequest(
-                    input=args.input,
-                    output=args.output,
-                    to=args.to,
-                    overwrite=args.overwrite,
-                ),
-            )
-            log_operation_summary(
-                command=CliCommand.CONVERT,
-                logger=logger,
-                report=result.report,
-                output=str(result.output_path),
-            )
-        elif isinstance(args, FilterCliArgs):
-            result = filter_certificates(
-                FilterRequest(
-                    input=args.input,
-                    output=args.output,
-                    subject_cn=args.subject_cn,
-                    subject_cn_regex=args.subject_cn_regex,
-                    issuer_cn=args.issuer_cn,
-                    issuer_cn_regex=args.issuer_cn_regex,
-                    not_after_lt=args.not_after_lt,
-                    not_before_gt=args.not_before_gt,
-                    fingerprint=args.fingerprint,
-                    exclude_expired=args.exclude_expired,
-                    logic=args.logic,
-                    on_invalid=args.on_invalid,
-                    overwrite=args.overwrite,
-                ),
-            )
-            log_operation_summary(
-                command=CliCommand.FILTER,
-                logger=logger,
-                report=result.report,
-                output=str(result.output_path),
-                matched=result.matched_count,
-                rejected=result.rejected_count,
-            )
-            exit_code = 3 if result.report.invalid_count > 0 else 0
-        else:
-            assert_never(args)
+        exit_code = dispatch_validated_command(args, logger)
     except ValidationError as exc:
         logger.exception("validation error", error=str(exc))
-        return 1
+        exit_code = 1
     except (CertificateParseError, OSError) as exc:
         logger.exception("operation error", error=str(exc))
-        return 2
-    else:
-        return exit_code
+        exit_code = 2
+    return exit_code
 
 
 if __name__ == "__main__":

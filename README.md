@@ -32,6 +32,7 @@ uv tool run certificate-manipulation filter --input ./bundle.pem --output ./filt
 uv tool run certificate-manipulation filter --input ./bundle.pem --output ./active.pem --exclude-expired
 uv tool run certificate-manipulation filter --input ./bundle.pem --output ./regex.pem --subject-cn-regex "^router-.*"
 uv tool run certificate-manipulation filter --input ./bundle.pem --output ./or.pem --subject-cn router --issuer-cn corp-root --logic or
+uv tool run certificate-manipulation combine --inputs ./a.crt ./b.crt --output ./bundle.pem --report-json ./combine-report.json
 ```
 
 ## Benchmark
