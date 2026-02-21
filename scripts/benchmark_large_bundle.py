@@ -336,9 +336,9 @@ def main() -> int:
     report = build_report(
         cert_count=args.cert_count,
         timings=BenchmarkTimings(
-            combine=round(combine_elapsed, 4),
-            split=round(split_elapsed, 4),
-            filter=round(filter_elapsed, 4),
+            combine=combine_elapsed,
+            split=split_elapsed,
+            filter=filter_elapsed,
         ),
         artifacts=BenchmarkArtifacts(
             workdir=str(workdir),
