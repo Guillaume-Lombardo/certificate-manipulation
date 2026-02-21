@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from collections import Counter
 from datetime import UTC, datetime, timedelta
@@ -234,3 +235,32 @@ def test_cli_filter_supports_regex_and_or_logic(tmp_path) -> None:
     assert or_filter.returncode == 0
     or_records = parse_many_from_text(or_output.read_text(encoding="utf-8"))
     assert len(or_records) == 1
+
+
+def test_cli_writes_report_json(tmp_path) -> None:
+    cert_a = tmp_path / "a.crt"
+    cert_b = tmp_path / "b.crt"
+    cert_a.write_text(make_self_signed_pem("router-a"), encoding="utf-8")
+    cert_b.write_text(make_self_signed_pem("router-b"), encoding="utf-8")
+
+    bundle = tmp_path / "bundle.pem"
+    report = tmp_path / "combine-report.json"
+    combine = run_cli(
+        [
+            "combine",
+            "--inputs",
+            str(cert_a),
+            str(cert_b),
+            "--output",
+            str(bundle),
+            "--report-json",
+            str(report),
+        ],
+    )
+    assert combine.returncode == 0
+    assert report.exists()
+
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["command"] == "combine"
+    assert payload["report"]["written"] == 2
+    assert payload["metadata"]["certificate_count"] == 2
