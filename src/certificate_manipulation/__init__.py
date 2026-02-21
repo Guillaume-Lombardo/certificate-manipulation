@@ -37,7 +37,7 @@ from certificate_manipulation.services.bundle_service import (
 )
 from certificate_manipulation.settings import Settings, get_settings
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
 __all__ = [
     "AsyncExecutionError",

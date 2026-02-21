@@ -8,6 +8,20 @@ The format is inspired by Keep a Changelog and this project follows Semantic Ver
 
 - No unreleased changes yet.
 
+## [1.0.0] - 2026-02-21
+
+### Added
+
+- Frozen public contract baseline for CLI and Python API in `docs/engineering/CONTRACTS.md`.
+- Hardened release process in `docs/engineering/RELEASE_RUNBOOK.md`.
+- Contract regression tests for CLI help surface and Python public exports.
+- Formal changelog tracking included in source distributions.
+
+### Changed
+
+- Release documentation in `README.md` now delegates to the release runbook.
+- Engineering docs index now links contract and release governance artifacts.
+
 ## [0.1.0] - 2026-02-21
 
 ### Added
