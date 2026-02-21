@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from pathlib import Path  # noqa: TC003
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from certificate_manipulation.domain.enums import (
+    FilterLogicMode,
     InvalidCertPolicy,
     OutputExt,
     OverwritePolicy,
@@ -106,11 +108,14 @@ class FilterRequest(DomainModel):
     input: Path
     output: Path
     subject_cn: str | None = None
+    subject_cn_regex: str | None = None
     issuer_cn: str | None = None
+    issuer_cn_regex: str | None = None
     not_after_lt: datetime | None = None
     not_before_gt: datetime | None = None
     fingerprint: str | None = None
     exclude_expired: bool = False
+    logic: FilterLogicMode = FilterLogicMode.AND
     on_invalid: InvalidCertPolicy = InvalidCertPolicy.FAIL
     overwrite: OverwritePolicy = OverwritePolicy.VERSION
 
@@ -130,6 +135,22 @@ class FilterRequest(DomainModel):
         if value.tzinfo is None:
             return value.replace(tzinfo=UTC)
         return value.astimezone(UTC)
+
+    @field_validator("subject_cn_regex", "issuer_cn_regex", mode="after")
+    @classmethod
+    def validate_regex_pattern(cls, value: str | None) -> str | None:
+        """Validate optional regex patterns used by filter criteria.
+
+        Args:
+            value (str | None): Optional regex pattern.
+
+        Returns:
+            str | None: Original regex pattern when valid.
+        """
+        if value is None:
+            return None
+        re.compile(value)
+        return value
 
 
 class FilterResult(DomainModel):

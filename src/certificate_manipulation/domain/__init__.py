@@ -2,6 +2,7 @@
 
 from certificate_manipulation.domain.enums import (
     CliCommand,
+    FilterLogicMode,
     InvalidCertPolicy,
     OutputExt,
     OverwritePolicy,
@@ -28,6 +29,7 @@ __all__ = [
     "CombineResult",
     "ConvertRequest",
     "ConvertResult",
+    "FilterLogicMode",
     "FilterRequest",
     "FilterResult",
     "InvalidCertPolicy",

@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from certificate_manipulation.domain.enums import (
+    FilterLogicMode,
     InvalidCertPolicy,
     OutputExt,
     OverwritePolicy,
@@ -380,3 +381,43 @@ def test_matches_filter_normalizes_naive_datetime_filters() -> None:
     assert request.not_after_lt is not None
     assert request.not_after_lt.tzinfo is UTC
     assert matches_filter(record, request) is True
+
+
+def test_filter_certificates_supports_regex_subject_match(tmp_path) -> None:
+    bundle = tmp_path / "bundle.pem"
+    pem_router = make_self_signed_pem("router-east")
+    pem_switch = make_self_signed_pem("switch-west")
+    bundle.write_text(f"{pem_router}\n{pem_switch}", encoding="utf-8")
+
+    result = filter_certificates(
+        FilterRequest(
+            input=bundle,
+            output=tmp_path / "filtered-regex.pem",
+            subject_cn_regex="^router-.*",
+            overwrite=OverwritePolicy.VERSION,
+        ),
+    )
+
+    assert result.matched_count == 1
+    assert result.rejected_count == 1
+
+
+def test_filter_certificates_supports_or_logic(tmp_path) -> None:
+    bundle = tmp_path / "bundle.pem"
+    pem_router = make_self_signed_pem("router-east")
+    pem_switch = make_self_signed_pem("switch-west")
+    bundle.write_text(f"{pem_router}\n{pem_switch}", encoding="utf-8")
+
+    result = filter_certificates(
+        FilterRequest(
+            input=bundle,
+            output=tmp_path / "filtered-or.pem",
+            subject_cn="router",
+            issuer_cn="does-not-exist",
+            logic=FilterLogicMode.OR,
+            overwrite=OverwritePolicy.VERSION,
+        ),
+    )
+
+    assert result.matched_count == 1
+    assert result.rejected_count == 1

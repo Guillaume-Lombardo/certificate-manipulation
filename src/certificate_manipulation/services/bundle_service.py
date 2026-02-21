@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -14,7 +15,7 @@ from certificate_manipulation.adapters.x509_parser import (
     load_from_file,
     parse_single_pem,
 )
-from certificate_manipulation.domain.enums import InvalidCertPolicy, SortMode
+from certificate_manipulation.domain.enums import FilterLogicMode, InvalidCertPolicy, SortMode
 from certificate_manipulation.domain.models import (
     CertificateRecord,
     CombineRequest,
@@ -311,23 +312,56 @@ def matches_filter(record: CertificateRecord, request: FilterRequest) -> bool:
     Returns:
         bool: `True` when record matches all active constraints.
     """
-    if request.subject_cn:
-        subject_cn = (record.subject_common_name or "").lower()
-        if request.subject_cn.lower() not in subject_cn:
-            return False
+    checks: list[bool] = []
+    subject_cn = record.subject_common_name or ""
+    issuer_cn = record.issuer_common_name or ""
+    checks.extend(
+        result
+        for enabled, result in [
+            (
+                request.subject_cn is not None,
+                request.subject_cn.lower() in subject_cn.lower() if request.subject_cn is not None else True,
+            ),
+            (
+                request.subject_cn_regex is not None,
+                bool(re.search(request.subject_cn_regex, subject_cn, flags=re.IGNORECASE))
+                if request.subject_cn_regex is not None
+                else True,
+            ),
+            (
+                request.issuer_cn is not None,
+                request.issuer_cn.lower() in issuer_cn.lower() if request.issuer_cn is not None else True,
+            ),
+            (
+                request.issuer_cn_regex is not None,
+                bool(re.search(request.issuer_cn_regex, issuer_cn, flags=re.IGNORECASE))
+                if request.issuer_cn_regex is not None
+                else True,
+            ),
+            (
+                request.not_after_lt is not None,
+                record.not_after < request.not_after_lt if request.not_after_lt is not None else True,
+            ),
+            (
+                request.not_before_gt is not None,
+                record.not_before > request.not_before_gt if request.not_before_gt is not None else True,
+            ),
+            (
+                request.exclude_expired,
+                record.not_after > datetime.now(tz=UTC),
+            ),
+            (
+                request.fingerprint is not None,
+                request.fingerprint.lower() == record.fingerprint_sha256.lower()
+                if request.fingerprint is not None
+                else True,
+            ),
+        ]
+        if enabled
+    )
 
-    if request.issuer_cn:
-        issuer_cn = (record.issuer_common_name or "").lower()
-        if request.issuer_cn.lower() not in issuer_cn:
-            return False
-
-    if request.not_after_lt and not (record.not_after < request.not_after_lt):
-        return False
-
-    if request.not_before_gt and not (record.not_before > request.not_before_gt):
-        return False
-
-    if request.exclude_expired and record.not_after <= datetime.now(tz=UTC):
-        return False
-
-    return not request.fingerprint or request.fingerprint.lower() == record.fingerprint_sha256.lower()
+    if not checks:
+        return True
+    if request.logic == FilterLogicMode.OR:
+        return any(checks)
+    return all(checks)

@@ -179,3 +179,58 @@ def test_cli_combine_accepts_der_input(tmp_path) -> None:
     assert combine.returncode == 0
     records = parse_many_from_text(bundle.read_text(encoding="utf-8"))
     assert len(records) == 2
+
+
+def test_cli_filter_supports_regex_and_or_logic(tmp_path) -> None:
+    cert_a = tmp_path / "a.crt"
+    cert_b = tmp_path / "b.crt"
+    cert_a.write_text(make_self_signed_pem("router-edge"), encoding="utf-8")
+    cert_b.write_text(make_self_signed_pem("switch-core"), encoding="utf-8")
+    bundle = tmp_path / "bundle.pem"
+    combine = run_cli(
+        [
+            "combine",
+            "--inputs",
+            str(cert_a),
+            str(cert_b),
+            "--output",
+            str(bundle),
+        ],
+    )
+    assert combine.returncode == 0
+
+    regex_output = tmp_path / "regex.pem"
+    regex_filter = run_cli(
+        [
+            "filter",
+            "--input",
+            str(bundle),
+            "--output",
+            str(regex_output),
+            "--subject-cn-regex",
+            "^router-.*",
+        ],
+    )
+    assert regex_filter.returncode == 0
+    regex_records = parse_many_from_text(regex_output.read_text(encoding="utf-8"))
+    assert len(regex_records) == 1
+
+    or_output = tmp_path / "or.pem"
+    or_filter = run_cli(
+        [
+            "filter",
+            "--input",
+            str(bundle),
+            "--output",
+            str(or_output),
+            "--subject-cn",
+            "router",
+            "--issuer-cn",
+            "nope",
+            "--logic",
+            "or",
+        ],
+    )
+    assert or_filter.returncode == 0
+    or_records = parse_many_from_text(or_output.read_text(encoding="utf-8"))
+    assert len(or_records) == 1
