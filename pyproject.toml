@@ -51,7 +51,7 @@ build-backend = "hatchling.build"
 packages = ["src/certificate_manipulation"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/certificate_manipulation", "README.md", "pyproject.toml", "LICENSE"]
+include = ["src/certificate_manipulation", "README.md", "CHANGELOG.md", "pyproject.toml", "LICENSE"]
 
 [tool.pytest.ini_options]
 minversion = "9.0"
