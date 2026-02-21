@@ -41,10 +41,12 @@ Run a basic performance check on a generated large bundle:
 
 ```bash
 uv run python scripts/benchmark_large_bundle.py --cert-count 500
+uv run python scripts/benchmark_large_bundle.py --cert-count 500 --clean --workdir .benchmarks/local --output-json .benchmarks/local/report.json --thresholds-file benchmarks/ci_thresholds.json
 ```
 
 The script prints JSON timings for `combine`, `split`, and `filter`.
 If the workdir already exists, rerun with `--clean`.
+When thresholds are configured, the script exits with code `2` if one command exceeds limits.
 
 ### Exit Codes
 

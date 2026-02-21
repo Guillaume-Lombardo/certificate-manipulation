@@ -206,5 +206,6 @@ Definition of Done:
 
 - Livré: R1 (support DER/P7B) avec tests unit/integration/end2end.
 - Livré: R2 (regex CN/issuer + mode `OR`) avec couverture unit/integration/end2end.
-- Démarré: R3 (export JSON machine-readable via `--report-json`) avec validation end2end.
-- À démarrer: R4, R5.
+- Livré: R3 (export JSON machine-readable via `--report-json`) avec validation end2end.
+- Démarré: R4 (benchmark CI + seuils indicatifs + artefacts).
+- À démarrer: R5.

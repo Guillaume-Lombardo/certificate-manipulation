@@ -21,6 +21,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding
 from cryptography.x509.oid import NameOID
+from pydantic import BaseModel, Field
 
 
 class BenchmarkConfigError(ValueError):
@@ -50,6 +51,39 @@ class BenchmarkConfigError(ValueError):
         super().__init__(message)
 
 
+class BenchmarkTimings(BaseModel):
+    """Measured command durations in seconds."""
+
+    combine: float
+    split: float
+    filter: float
+
+
+class BenchmarkArtifacts(BaseModel):
+    """Paths produced by one benchmark execution."""
+
+    workdir: str
+    bundle: str
+    split_dir: str
+    filtered: str
+
+
+class BenchmarkReport(BaseModel):
+    """Machine-readable benchmark report payload."""
+
+    cert_count: int = Field(ge=1)
+    timings_seconds: BenchmarkTimings
+    artifacts: BenchmarkArtifacts
+
+
+class BenchmarkThresholds(BaseModel):
+    """Upper bounds for benchmark durations in seconds."""
+
+    combine_max_seconds: float | None = Field(default=None, gt=0)
+    split_max_seconds: float | None = Field(default=None, gt=0)
+    filter_max_seconds: float | None = Field(default=None, gt=0)
+
+
 def parse_args() -> argparse.Namespace:
     """Parse CLI arguments.
 
@@ -68,6 +102,36 @@ def parse_args() -> argparse.Namespace:
         "--clean",
         action="store_true",
         help="Allow deleting an existing workdir before benchmark execution",
+    )
+    parser.add_argument(
+        "--output-json",
+        type=Path,
+        default=None,
+        help="Optional output file for benchmark JSON report",
+    )
+    parser.add_argument(
+        "--thresholds-file",
+        type=Path,
+        default=None,
+        help="Optional JSON file with duration thresholds",
+    )
+    parser.add_argument(
+        "--assert-max-combine-seconds",
+        type=float,
+        default=None,
+        help="Fail when combine duration exceeds this value",
+    )
+    parser.add_argument(
+        "--assert-max-split-seconds",
+        type=float,
+        default=None,
+        help="Fail when split duration exceeds this value",
+    )
+    parser.add_argument(
+        "--assert-max-filter-seconds",
+        type=float,
+        default=None,
+        help="Fail when filter duration exceeds this value",
     )
     return parser.parse_args()
 
@@ -137,6 +201,84 @@ def write_input_certs(*, cert_count: int, input_dir: Path) -> None:
         cert_path.write_text(make_self_signed_pem(f"bench-{index:04d}"), encoding="utf-8")
 
 
+def build_report(
+    *,
+    cert_count: int,
+    timings: BenchmarkTimings,
+    artifacts: BenchmarkArtifacts,
+) -> BenchmarkReport:
+    """Build the benchmark report model.
+
+    Args:
+        cert_count (int): Number of generated certificates.
+        timings (BenchmarkTimings): Measured command timings.
+        artifacts (BenchmarkArtifacts): Generated artifact locations.
+
+    Returns:
+        BenchmarkReport: Structured benchmark report payload.
+    """
+    return BenchmarkReport(
+        cert_count=cert_count,
+        timings_seconds=timings,
+        artifacts=artifacts,
+    )
+
+
+def load_thresholds(args: argparse.Namespace) -> BenchmarkThresholds:
+    """Load threshold config from CLI flags and optional JSON file.
+
+    Args:
+        args (argparse.Namespace): Parsed CLI arguments.
+
+    Returns:
+        BenchmarkThresholds: Effective thresholds.
+    """
+    file_thresholds: BenchmarkThresholds = BenchmarkThresholds()
+    thresholds_file = args.thresholds_file
+    if thresholds_file is not None:
+        file_thresholds = BenchmarkThresholds.model_validate_json(
+            thresholds_file.read_text(encoding="utf-8"),
+        )
+
+    return BenchmarkThresholds(
+        combine_max_seconds=args.assert_max_combine_seconds
+        if args.assert_max_combine_seconds is not None
+        else file_thresholds.combine_max_seconds,
+        split_max_seconds=args.assert_max_split_seconds
+        if args.assert_max_split_seconds is not None
+        else file_thresholds.split_max_seconds,
+        filter_max_seconds=args.assert_max_filter_seconds
+        if args.assert_max_filter_seconds is not None
+        else file_thresholds.filter_max_seconds,
+    )
+
+
+def evaluate_thresholds(*, report: BenchmarkReport, thresholds: BenchmarkThresholds) -> list[str]:
+    """Evaluate measured timings against configured limits.
+
+    Args:
+        report (BenchmarkReport): Measured benchmark report.
+        thresholds (BenchmarkThresholds): Configured threshold values.
+
+    Returns:
+        list[str]: Human-readable threshold violations.
+    """
+    failures: list[str] = []
+    checks = (
+        ("combine", report.timings_seconds.combine, thresholds.combine_max_seconds),
+        ("split", report.timings_seconds.split, thresholds.split_max_seconds),
+        ("filter", report.timings_seconds.filter, thresholds.filter_max_seconds),
+    )
+    for name, elapsed, max_allowed in checks:
+        if max_allowed is None:
+            continue
+        if elapsed > max_allowed:
+            failures.append(
+                f"{name} exceeded threshold: measured={elapsed:.4f}s max={max_allowed:.4f}s",
+            )
+    return failures
+
+
 def main() -> int:
     """Entrypoint for benchmark execution.
 
@@ -191,21 +333,32 @@ def main() -> int:
         "bench-0",
     )
 
-    payload = {
-        "cert_count": args.cert_count,
-        "timings_seconds": {
-            "combine": round(combine_elapsed, 4),
-            "split": round(split_elapsed, 4),
-            "filter": round(filter_elapsed, 4),
-        },
-        "artifacts": {
-            "workdir": str(workdir),
-            "bundle": str(bundle),
-            "split_dir": str(split_dir),
-            "filtered": str(filtered),
-        },
-    }
-    print(json.dumps(payload, indent=2))
+    report = build_report(
+        cert_count=args.cert_count,
+        timings=BenchmarkTimings(
+            combine=round(combine_elapsed, 4),
+            split=round(split_elapsed, 4),
+            filter=round(filter_elapsed, 4),
+        ),
+        artifacts=BenchmarkArtifacts(
+            workdir=str(workdir),
+            bundle=str(bundle),
+            split_dir=str(split_dir),
+            filtered=str(filtered),
+        ),
+    )
+    report_json = json.dumps(report.model_dump(mode="json"), indent=2, sort_keys=True)
+    print(report_json)
+
+    if args.output_json is not None:
+        args.output_json.parent.mkdir(parents=True, exist_ok=True)
+        args.output_json.write_text(f"{report_json}\n", encoding="utf-8")
+
+    threshold_failures = evaluate_thresholds(report=report, thresholds=load_thresholds(args))
+    if threshold_failures:
+        for failure in threshold_failures:
+            print(f"THRESHOLD_FAILURE: {failure}", file=sys.stderr)
+        return 2
     return 0
 
 
