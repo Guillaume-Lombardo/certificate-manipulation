@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from certificate_manipulation import cli
+from certificate_manipulation import __version__, cli
 from certificate_manipulation.domain.enums import (
     CliCommand,
     FilterLogicMode,
@@ -33,7 +33,7 @@ def test_build_parser_supports_version_flag(capsys) -> None:
     assert exc_info.value.code == 0
 
     captured = capsys.readouterr()
-    assert "0.1.0" in captured.out
+    assert __version__ in captured.out
 
 
 def test_main_returns_validation_error_exit_code(mocker) -> None:
