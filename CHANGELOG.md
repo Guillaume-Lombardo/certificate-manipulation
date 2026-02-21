@@ -6,20 +6,7 @@ The format is inspired by Keep a Changelog and this project follows Semantic Ver
 
 ## [Unreleased]
 
-### Added
-
-- CI benchmark workflow with machine-readable artifact output and threshold checks.
-- Benchmark script support for JSON report export and threshold assertions.
-- CLI `--report-json` option on `combine`, `split`, `convert`, and `filter`.
-- Extended certificate input format support for DER/CER and PKCS7 bundles.
-- Advanced filter options with regex matching and criteria combination mode (`AND`/`OR`).
-- Filter option to exclude expired certificates (`--exclude-expired`).
-- End-to-end and unit tests for contract and benchmark behavior.
-
-### Changed
-
-- CLI dispatch logic refactored into command-specific functions.
-- Documentation extended with benchmark usage and release guidance.
+- No unreleased changes yet.
 
 ## [0.1.0] - 2026-02-21
 
@@ -33,3 +20,15 @@ The format is inspired by Keep a Changelog and this project follows Semantic Ver
 - Strongly typed domain models and enums for public contracts.
 - Overwrite strategies (`version`, `force`, `fail`) and invalid certificate handling (`fail`, `skip`).
 - Project quality gates and CI for formatting, linting, typing, and tests.
+- CI benchmark workflow with machine-readable artifact output and threshold checks.
+- Benchmark script support for JSON report export and threshold assertions.
+- CLI `--report-json` option on `combine`, `split`, `convert`, and `filter`.
+- Extended certificate input format support for DER/CER and PKCS7 bundles.
+- Advanced filter options with regex matching and criteria combination mode (`AND`/`OR`).
+- Filter option to exclude expired certificates (`--exclude-expired`).
+- End-to-end and unit tests for contract and benchmark behavior.
+
+### Changed
+
+- CLI dispatch logic refactored into command-specific functions.
+- Documentation extended with benchmark usage and release guidance.

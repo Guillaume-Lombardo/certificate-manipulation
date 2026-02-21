@@ -40,6 +40,7 @@ def test_public_api_contract_exports_expected_symbols() -> None:
         "split",
     }
 
+    assert len(cm.__all__) == len(expected_symbols)
     assert set(cm.__all__) == expected_symbols
     for symbol in expected_symbols:
         assert hasattr(cm, symbol)
